@@ -90,7 +90,7 @@ export async function fetchRecipe({ name, cuisine, desc, people, diet, restricti
 export async function searchRecipe({ query, people, diet, restrictions, country, currency }) {
   const prompt = `Recipe: "${query}". Serves ${people}. Diet: ${diet}. Restrictions: ${restrictions || 'none'}. Country: ${country}. Currency: ${currency}.`
     + ` Return JSON only: {"dishName":"","cuisine":"","prepTime":"","cookTime":"","difficulty":"","servings":${people},"pricePerServing":0,"calories":0,"ingredients":[{"qty":"","name":"","note":""}],"steps":[""],"tip":"","funFact":""}.`
-    + ` pricePerServing = realistic cost in ${currency} for ONE serving in ${country}. calories = integer kcal/serving.`
+    + ` pricePerServing = realistic TOTAL cost in ${currency} to buy ALL ingredients needed to make this dish from scratch in ${country} (not per serving — the full shopping cost). calories = integer kcal/serving.`
 
   const raw = await callAPI('recipe', {
     model: 'claude-sonnet-4-5',
