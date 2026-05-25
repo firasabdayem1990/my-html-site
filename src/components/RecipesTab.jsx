@@ -19,7 +19,12 @@ export default function RecipesTab({ state }) {
       return saved ? JSON.parse(saved) : null
     } catch(e) { return null }
   })
-  const [searchResultOpen, setSearchResultOpen] = useState(true)
+  const [searchResultOpen, setSearchResultOpen] = useState(() => {
+    try { 
+      const saved = localStorage.getItem('sb_search_open')
+      return saved === null ? true : saved === 'true'
+    } catch(e) { return true }
+  })
   const [searching, setSearching] = useState(false)
   const [searchErr, setSearchErr] = useState('')
   const [community, setCommunity] = useState([])
@@ -108,6 +113,7 @@ export default function RecipesTab({ state }) {
       })
       setSearchResult(r)
     setSearchResultOpen(true)
+    try { localStorage.setItem('sb_search_open', 'true') } catch(e) {}
     try { localStorage.setItem('sb_last_search', JSON.stringify(r)) } catch(e) {}
     } catch(e) { setSearchErr(e.message) }
     setSearching(false)
@@ -224,7 +230,7 @@ export default function RecipesTab({ state }) {
         {/* SEARCH RESULT */}
         {searchResult&&(
           <div className={`recipe-card${searchResultOpen?' open':''}`} style={{marginBottom:20}}>
-            <div className="recipe-header" onClick={()=>setSearchResultOpen(p=>!p)} style={{cursor:'pointer'}}>
+            <div className="recipe-header" onClick={()=>setSearchResultOpen(p=>{const next=!p;try{localStorage.setItem('sb_search_open',next)}catch(e){}return next;})} style={{cursor:'pointer'}}>
               <span className="recipe-flag">{flag(searchResult.cuisine)}</span>
               <div className="recipe-hinfo">
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
