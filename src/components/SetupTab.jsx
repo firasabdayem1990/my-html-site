@@ -32,6 +32,34 @@ const COUNTRY_FLAGS = {
   'Morocco':'🇲🇦','South Africa':'🇿🇦','Other':'🌍'
 }
 
+const CURRENCIES = [
+  {symbol:'$',name:'USD — US Dollar'},
+  {symbol:'€',name:'EUR — Euro'},
+  {symbol:'£',name:'GBP — British Pound'},
+  {symbol:'L.L',name:'LBP — Lebanese Pound'},
+  {symbol:'AED',name:'AED — UAE Dirham'},
+  {symbol:'SAR',name:'SAR — Saudi Riyal'},
+  {symbol:'JOD',name:'JOD — Jordanian Dinar'},
+  {symbol:'EGP',name:'EGP — Egyptian Pound'},
+  {symbol:'TRY',name:'TRY — Turkish Lira'},
+  {symbol:'INR',name:'INR — Indian Rupee'},
+  {symbol:'JPY',name:'JPY — Japanese Yen'},
+  {symbol:'CNY',name:'CNY — Chinese Yuan'},
+  {symbol:'KRW',name:'KRW — Korean Won'},
+  {symbol:'THB',name:'THB — Thai Baht'},
+  {symbol:'MXN',name:'MXN — Mexican Peso'},
+  {symbol:'BRL',name:'BRL — Brazilian Real'},
+  {symbol:'AUD',name:'AUD — Australian Dollar'},
+  {symbol:'CAD',name:'CAD — Canadian Dollar'},
+  {symbol:'MAD',name:'MAD — Moroccan Dirham'},
+  {symbol:'NGN',name:'NGN — Nigerian Naira'},
+  {symbol:'ZAR',name:'ZAR — South African Rand'},
+  {symbol:'CHF',name:'CHF — Swiss Franc'},
+  {symbol:'SEK',name:'SEK — Swedish Krona'},
+  {symbol:'NOK',name:'NOK — Norwegian Krone'},
+  {symbol:'Other',name:'Other — Custom symbol'},
+]
+
 export default function SetupTab({ state, onPlanGenerated }) {
   const { prefs, updatePrefs, updatePlan, pantry } = state
   const [generating, setGenerating] = useState(false)
@@ -168,8 +196,20 @@ export default function SetupTab({ state, onPlanGenerated }) {
           </div>
         </div>
         <div className="g2" style={{marginTop:10}}>
-          <div><div className="field-lbl">Currency symbol</div>
-            <input type="text" value={prefs.currency||''} placeholder="$" onChange={e=>updatePrefs({currency:e.target.value})} maxLength="4"/>
+          <div><div className="field-lbl">Currency</div>
+            <select
+              value={CURRENCIES.find(c=>c.symbol===(prefs.currency||'$'))?.symbol||'Other'}
+              onChange={e=>{
+                if(e.target.value!=='Other') updatePrefs({currency:e.target.value})
+                else updatePrefs({currency:''})
+              }}
+              style={{width:'100%',padding:'10px 13px',background:'var(--bg)',border:'1px solid var(--bdr2)',borderRadius:'var(--r)',fontFamily:'var(--sans)',fontSize:13,color:'var(--t)',outline:'none'}}
+            >
+              {CURRENCIES.map(c=><option key={c.symbol} value={c.symbol}>{c.name}</option>)}
+            </select>
+            {(!CURRENCIES.find(c=>c.symbol===(prefs.currency||'$')) || prefs.currency==='') && (
+              <input type="text" value={prefs.currency||''} placeholder="Type symbol e.g. ₹" onChange={e=>updatePrefs({currency:e.target.value})} maxLength="6" style={{marginTop:6}}/>
+            )}
           </div>
           <div><div className="field-lbl">Your country</div>
             <select value={prefs.country||'Lebanon'} onChange={e=>updatePrefs({country:e.target.value})} style={{width:'100%',padding:'10px 13px',background:'var(--bg)',border:'1px solid var(--bdr2)',borderRadius:'var(--r)',fontFamily:'var(--sans)',fontSize:13,color:'var(--t)',outline:'none'}}>
