@@ -13,7 +13,13 @@ export default function RecipesTab({ state }) {
   const [recipeCache, setRecipeCache] = useState({})
   const [loadingCard, setLoadingCard] = useState(null)
   const [searchQ, setSearchQ] = useState('')
-  const [searchResult, setSearchResult] = useState(null)
+  const [searchResult, setSearchResult] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sb_last_search')
+      return saved ? JSON.parse(saved) : null
+    } catch(e) { return null }
+  })
+  const [searchResultOpen, setSearchResultOpen] = useState(true)
   const [searching, setSearching] = useState(false)
   const [searchErr, setSearchErr] = useState('')
   const [community, setCommunity] = useState([])
@@ -101,6 +107,8 @@ export default function RecipesTab({ state }) {
         currency: prefs.currency||'$'
       })
       setSearchResult(r)
+    setSearchResultOpen(true)
+    try { localStorage.setItem('sb_last_search', JSON.stringify(r)) } catch(e) {}
     } catch(e) { setSearchErr(e.message) }
     setSearching(false)
   }
@@ -215,11 +223,14 @@ export default function RecipesTab({ state }) {
 
         {/* SEARCH RESULT */}
         {searchResult&&(
-          <div className="recipe-card open" style={{marginBottom:20}}>
-            <div className="recipe-header" onClick={()=>setSearchResult(null)} style={{cursor:'pointer'}}>
+          <div className={`recipe-card${searchResultOpen?' open':''}`} style={{marginBottom:20}}>
+            <div className="recipe-header" onClick={()=>setSearchResultOpen(p=>!p)} style={{cursor:'pointer'}}>
               <span className="recipe-flag">{flag(searchResult.cuisine)}</span>
               <div className="recipe-hinfo">
-                <div style={{fontSize:10,fontWeight:500,letterSpacing:.5,textTransform:'uppercase',color:'var(--t3)',marginBottom:3}}>{searchResult.cuisine||'World cuisine'}</div>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <div style={{fontSize:10,fontWeight:500,letterSpacing:.5,textTransform:'uppercase',color:'var(--t3)',marginBottom:3}}>{searchResult.cuisine||'World cuisine'}</div>
+                  <button onClick={e=>{e.stopPropagation();setSearchResult(null);try{localStorage.removeItem('sb_last_search')}catch(e2){}}} style={{background:'none',border:'none',cursor:'pointer',fontSize:11,color:'var(--t3)',fontFamily:'var(--sans)',padding:'2px 6px',borderRadius:6,marginBottom:3}}>✕ Clear</button>
+                </div>
                 <div className="recipe-meal-name">{searchResult.dishName||searchQ}</div>
                 <div style={{display:'flex',gap:8,marginTop:6,flexWrap:'wrap'}}>
                   {searchResult.prepTime&&<span style={{fontSize:11,color:'var(--t3)'}}>⏱ {searchResult.prepTime}</span>}
@@ -232,7 +243,7 @@ export default function RecipesTab({ state }) {
               </div>
               <div className="recipe-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
             </div>
-            <RecipeBody r={searchResult}/>
+            {searchResultOpen && <RecipeBody r={searchResult}/>}
           </div>
         )}
 
