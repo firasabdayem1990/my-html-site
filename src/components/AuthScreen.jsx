@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { signIn, signUp } from '../supabase.js'
+import { signIn, signUp, supabase } from '../supabase.js'
 
 export default function AuthScreen({ onSkip }) {
   const [tab, setTab] = useState('in')
@@ -9,6 +9,9 @@ export default function AuthScreen({ onSkip }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [showForgot, setShowForgot] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotSent, setForgotSent] = useState(false)
 
   const handleSignIn = async () => {
     if (!email || !password) { setError('Please enter email and password.'); return }
@@ -91,6 +94,29 @@ export default function AuthScreen({ onSkip }) {
         {error && <div className="auth-err">{error}</div>}
         {success && <div className="auth-ok">{success}</div>}
 
+        {!showForgot ? (
+          <button style={{background:'none',border:'none',cursor:'pointer',fontSize:12,color:'var(--t3)',fontFamily:'var(--sans)',marginTop:8,textDecoration:'underline'}} onClick={()=>setShowForgot(true)}>
+            Forgot your password?
+          </button>
+        ) : (
+          <div style={{background:'var(--bg2)',borderRadius:'var(--r)',padding:14,marginTop:12}}>
+            <div style={{fontSize:13,fontWeight:500,marginBottom:10}}>Reset password</div>
+            <div className="auth-field">
+              <label>Your email</label>
+              <input type="email" placeholder="you@email.com" value={forgotEmail} onChange={e=>setForgotEmail(e.target.value)}/>
+            </div>
+            {!forgotSent ? (
+              <button className="auth-cta" onClick={async()=>{
+                if(!forgotEmail){return}
+                await supabase.auth.resetPasswordForEmail(forgotEmail,{redirectTo:window.location.origin})
+                setForgotSent(true)
+              }}>Send reset link</button>
+            ) : (
+              <div style={{fontSize:12,color:'var(--gm)',marginTop:8}}>✓ Check your email for a reset link!</div>
+            )}
+            <button style={{background:'none',border:'none',cursor:'pointer',fontSize:11,color:'var(--t3)',marginTop:8,fontFamily:'var(--sans)'}} onClick={()=>{setShowForgot(false);setForgotSent(false)}}>Cancel</button>
+          </div>
+        )}
         <div className="auth-divider">or</div>
         <button className="auth-cta" style={{ background:'var(--bg2)', color:'var(--t2)', border:'1px solid var(--bdr2)' }} onClick={onSkip}>
           Continue without account
