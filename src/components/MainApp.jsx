@@ -46,15 +46,62 @@ export default function MainApp({ user, onSignOut }) {
             <span style={{ fontSize:11, color:'var(--t3)', marginLeft:'auto' }}>Local mode</span>
           )}
         </div>
-        <nav className="tabs" role="tablist">
+        <nav style={{
+          display:'flex',
+          borderTop:'1px solid var(--bdr)',
+          margin:'0 -18px',
+          padding:'0',
+          overflowX:'auto',
+          scrollbarWidth:'none'
+        }} role="tablist">
           {TABS.map(t => (
             <button
               key={t.id}
-              className={`tbtn${activeTab === t.id ? ' on' : ''}`}
               onClick={() => setActiveTab(t.id)}
+              style={{
+                flex:1,
+                display:'flex',
+                flexDirection:'column',
+                alignItems:'center',
+                justifyContent:'center',
+                gap:4,
+                padding:'8px 4px',
+                background:'none',
+                border:'none',
+                borderTop: activeTab===t.id ? '2px solid var(--g)' : '2px solid transparent',
+                cursor:'pointer',
+                WebkitTapHighlightColor:'transparent',
+                transition:'all .15s',
+                minWidth:0,
+              }}
             >
-              <span style={{ width:14, height:14, display:'inline-flex' }}>{t.icon}</span>
-              {t.label}
+              <span style={{
+                width:22,
+                height:22,
+                display:'flex',
+                alignItems:'center',
+                justifyContent:'center',
+                borderRadius:8,
+                background: activeTab===t.id ? 'var(--g)' : 'transparent',
+                padding: activeTab===t.id ? 4 : 0,
+                transition:'all .15s',
+                color: activeTab===t.id ? '#fff' : 'var(--t3)',
+              }}>
+                {t.icon}
+              </span>
+              <span style={{
+                fontSize:10,
+                fontFamily:'var(--sans)',
+                fontWeight: activeTab===t.id ? 600 : 400,
+                color: activeTab===t.id ? 'var(--g)' : 'var(--t3)',
+                letterSpacing:.2,
+                whiteSpace:'nowrap',
+                overflow:'hidden',
+                textOverflow:'ellipsis',
+                maxWidth:52,
+              }}>
+                {t.label}
+              </span>
             </button>
           ))}
         </nav>
