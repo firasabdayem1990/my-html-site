@@ -41,6 +41,30 @@ export default function RecipesTab({ state }) {
 
   useState(() => { loadComm() }, [])
 
+  // Load recipe cache from localStorage on mount
+  const [recipeCacheLoaded, setRecipeCacheLoaded] = useState(false)
+  if (!recipeCacheLoaded) {
+    try {
+      const saved = localStorage.getItem('sb_recipe_cache')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        // Only restore if it matches current plan
+        const planKey = plan?.weekPlan?.[0]?.day
+        if (parsed._planKey === planKey) {
+          Object.assign(recipeCache, parsed)
+        }
+      }
+    } catch(e) {}
+    setRecipeCacheLoaded(true)
+  }
+
+  const saveRecipeCache = (cache) => {
+    try {
+      const planKey = plan?.weekPlan?.[0]?.day
+      localStorage.setItem('sb_recipe_cache', JSON.stringify({...cache, _planKey: planKey}))
+    } catch(e) {}
+  }
+
   const toggleCard = async (rid, name, cuisine, desc) => {
     const isOpen = openCards[rid]
     setOpenCards(p => ({...p, [rid]: !isOpen}))
@@ -55,7 +79,9 @@ export default function RecipesTab({ state }) {
           country: prefs.country||'Lebanon',
           currency: prefs.currency||'$'
         })
-        setRecipeCache(p => ({...p, [rid]: r}))
+        const newCache = {...recipeCache, [rid]: r}
+        setRecipeCache(newCache)
+        saveRecipeCache(newCache)
       } catch(e) {}
       setLoadingCard(null)
     }

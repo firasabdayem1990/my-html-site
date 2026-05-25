@@ -111,6 +111,8 @@ export default function SetupTab({ state, onPlanGenerated }) {
       plan._cur = prefs.currency || '$'
       plan._cuisines = prefs.cuisines || []
       plan._country = prefs.country || 'Lebanon'
+      // Clear old recipe cache since plan changed
+      try { localStorage.removeItem('sb_recipe_cache') } catch(e) {}
       updatePlan(plan)
       onPlanGenerated()
     } catch (e) {
