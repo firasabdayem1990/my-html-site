@@ -160,16 +160,16 @@ export default function SetupTab({ state, onPlanGenerated }) {
         <div className="g2">
           <div><div className="field-lbl">Weekly budget</div>
             <div className="irow"><span className="ipre">{prefs.currency||'$'}</span>
-              <input type="number" value={prefs.budget||'80'} onChange={e=>updatePrefs({budget:e.target.value})} min="5"/>
+              <input type="number" value={prefs.budget||''} placeholder="80" onChange={e=>updatePrefs({budget:e.target.value})} min="5" style={{width:'100%'}}/>
             </div>
           </div>
           <div><div className="field-lbl">People to feed</div>
-            <input type="number" value={prefs.people||'2'} onChange={e=>updatePrefs({people:e.target.value})} min="1" max="20"/>
+            <input type="number" value={prefs.people||''} placeholder="2" onChange={e=>updatePrefs({people:e.target.value})} min="1" max="20"/>
           </div>
         </div>
         <div className="g2" style={{marginTop:10}}>
           <div><div className="field-lbl">Currency symbol</div>
-            <input type="text" value={prefs.currency||'$'} onChange={e=>updatePrefs({currency:e.target.value})} maxLength="4"/>
+            <input type="text" value={prefs.currency||''} placeholder="$" onChange={e=>updatePrefs({currency:e.target.value})} maxLength="4"/>
           </div>
           <div><div className="field-lbl">Your country</div>
             <select value={prefs.country||'Lebanon'} onChange={e=>updatePrefs({country:e.target.value})} style={{width:'100%',padding:'10px 13px',background:'var(--bg)',border:'1px solid var(--bdr2)',borderRadius:'var(--r)',fontFamily:'var(--sans)',fontSize:13,color:'var(--t)',outline:'none'}}>
@@ -196,9 +196,9 @@ export default function SetupTab({ state, onPlanGenerated }) {
             </button>
           ))}
         </div>
-        <div className="cuisine-search-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" placeholder="Search cuisines…" value={cuisineSearch} onChange={e=>setCuisineSearch(e.target.value)}/>
+        <div className="cuisine-search-wrap" style={{position:'relative'}}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:14,height:14,position:'absolute',left:11,top:'50%',transform:'translateY(-50%)',color:'var(--t3)',pointerEvents:'none'}}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" placeholder="Search cuisines…" value={cuisineSearch} onChange={e=>setCuisineSearch(e.target.value)} style={{paddingLeft:34}}/>
         </div>
         {cuisineSearch && (
           <div className="cuisine-dropdown open">
