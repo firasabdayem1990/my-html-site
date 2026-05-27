@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { fetchRecipe, searchRecipe } from '../ai.js'
-import { loadCommunityRecipes, submitCommunityRecipe, deleteCommunityRecipe, toggleLike, loadUserLikes, submitRating, loadUserRatings, loadComments, submitComment, deleteComment, saveRecipeCacheCloud, loadRecipeCacheCloud, clearRecipeCacheCloud } from '../supabase.js'
+import { loadCommunityRecipes, submitCommunityRecipe, deleteCommunityRecipe, toggleLike, loadUserLikes, submitRating, loadUserRatings, loadComments, submitComment, deleteComment, saveRecipeCacheCloud, loadRecipeCacheCloud, clearRecipeCacheCloud, saveUserMeta } from '../supabase.js'
 import { supabase } from '../supabase.js'
 
 const CUISINE_CODES = {
@@ -199,6 +199,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
         const filtered = prev.filter(h => h.dishName !== r.dishName)
         const updated = [r, ...filtered].slice(0, 10)
         try { localStorage.setItem('sb_search_history', JSON.stringify(updated)) } catch(e) {}
+        if (state.user) saveUserMeta(state.user.id, 'search_history', updated).catch(() => {})
         return updated
       })
       try { localStorage.setItem('sb_search_open', 'true') } catch(e) {}
