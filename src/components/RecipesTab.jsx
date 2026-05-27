@@ -236,7 +236,10 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
       setCommentInputs(p => ({...p, [recipeId]: ''}))
       await loadRecipeComments(recipeId)
       setCommunity(p => p.map(r => r.id===recipeId ? {...r, comment_count:(r.comment_count||0)+1} : r))
-    } catch(e) { alert('Could not post comment') }
+    } catch(e) { 
+      // Comment may have saved despite error — reload to confirm
+      await loadRecipeComments(recipeId)
+    }
     setSubmittingComment(p => ({...p, [recipeId]: false}))
   }
 
