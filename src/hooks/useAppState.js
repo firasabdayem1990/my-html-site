@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { savePlan, loadPlan, savePantry, loadPantry, savePrefs, loadPrefs, saveChecked, loadChecked } from '../supabase.js'
+import { savePlan, loadPlan, savePantry, loadPantry, savePrefs, loadPrefs, saveChecked, loadChecked, saveUserMeta, loadUserMeta } from '../supabase.js'
 
 const LOCAL_KEY = {
   pantry: 'sb_pantry',
@@ -53,6 +53,17 @@ export function useAppState(user) {
           if (cloudPlan) setPlan(cloudPlan)
           const ex = localStorage.getItem('sb_extra_items')
           if (ex) setExtraItems(JSON.parse(ex))
+          // Load search history and extra items from cloud
+          try {
+            const [cloudExtras, cloudHistory] = await Promise.all([
+              loadUserMeta(user.id, 'extra_items'),
+              loadUserMeta(user.id, 'search_history')
+            ])
+            if (cloudExtras?.length) setExtraItems(cloudExtras)
+            if (cloudHistory?.length) {
+              localStorage.setItem('sb_search_history', JSON.stringify(cloudHistory))
+            }
+          } catch(e) {}
           if (cloudPrefs) setPrefs(p => {
             const merged = { ...p, ...cloudPrefs }
             // Migrate old 'people' field to adults if needed
@@ -159,7 +170,8 @@ export function useAppState(user) {
   const updateExtraItems = useCallback((items) => {
     setExtraItems(items)
     try { localStorage.setItem('sb_extra_items', JSON.stringify(items)) } catch(e) {}
-  }, [])
+    if (user) saveUserMeta(user.id, 'extra_items', items).catch(() => {})
+  }, [user])
 
   return {
     pantry, plan, checked, prefs, isDemo, dataLoaded, extraItems, user,
