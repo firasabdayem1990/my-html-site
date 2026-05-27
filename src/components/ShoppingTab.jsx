@@ -11,11 +11,12 @@ export default function ShoppingTab({ state }) {
   let planTotal = 0
   list.forEach(cat => (cat.items || []).forEach(i => { planTotal += (i.estimatedCost || 0) }))
 
-  // Extra items total (no prices from AI for ingredients, just show them)
+  // Extra items total — use pricePerServing as total ingredient cost
   const extraTotal = (extraItems || []).reduce((sum, dish) =>
-    sum + (dish.pricePerServing || 0), 0)
+    sum + (parseFloat(dish.pricePerServing) || 0), 0)
 
   const total = planTotal + extraTotal
+  const hasExtras = (extraItems||[]).length > 0
   const pct = Math.min(100, Math.round((total / budget) * 100))
   const rem = budget - total
 
@@ -76,7 +77,7 @@ export default function ShoppingTab({ state }) {
         )}
 
         {/* BUDGET CARD */}
-        {plan && (
+        {(plan || hasExtras) && (
           <div className="bcard fu">
             <div className="bc-row">
               <div>
@@ -88,8 +89,14 @@ export default function ShoppingTab({ state }) {
                 <div className="bc-remlbl">{rem>=0?'remaining':'over budget'}</div>
               </div>
             </div>
-            <div className="btrack"><div className="bprog" style={{width:`${pct}%`}}></div></div>
+            <div className="btrack"><div className="bprog" style={{width:`${pct}%`,background:rem<0?'#e55':'var(--g)'}}></div></div>
             <div className="bmeta"><span>{cur}0</span><span>{cur}{budget.toFixed(0)} budget</span></div>
+            {hasExtras && extraTotal > 0 && (
+              <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid var(--bdr)',display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--t3)'}}>
+                <span>📋 Meal plan: {cur}{planTotal.toFixed(2)}</span>
+                <span>🛒 Recipe extras: {cur}{extraTotal.toFixed(2)}</span>
+              </div>
+            )}
           </div>
         )}
 
