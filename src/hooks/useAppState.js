@@ -25,7 +25,8 @@ const defaultPrefs = {
   calActivity: '1.55',
   calGoal: 'maintain',
   calGender: 'male',
-  calTarget: 0
+  calTarget: 0,
+  cuisinePercs: []
 }
 
 export function useAppState(user) {
