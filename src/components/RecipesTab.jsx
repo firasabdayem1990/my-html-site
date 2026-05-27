@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { fetchRecipe, searchRecipe } from '../ai.js'
 import { loadCommunityRecipes, submitCommunityRecipe, deleteCommunityRecipe, toggleLike, loadUserLikes } from '../supabase.js'
 
@@ -7,23 +7,17 @@ const flag = (c) => CUISINE_FLAGS[c] || '🍽️'
 
 const QUICK_RECIPES = ['Spaghetti Carbonara','Chicken Shawarma','Beef Tacos','Pad Thai','Knafeh','Sushi Rolls']
 
-export default function RecipesTab({ state }) {
+export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
   const { plan, prefs } = state
   const [openCards, setOpenCards] = useState({})
   const [recipeCache, setRecipeCache] = useState({})
   const [loadingCard, setLoadingCard] = useState(null)
   const [searchQ, setSearchQ] = useState('')
   const [searchResult, setSearchResult] = useState(() => {
-    try {
-      const saved = localStorage.getItem('sb_last_search')
-      return saved ? JSON.parse(saved) : null
-    } catch(e) { return null }
+    try { return JSON.parse(localStorage.getItem('sb_last_search')) } catch(e) { return null }
   })
   const [searchResultOpen, setSearchResultOpen] = useState(() => {
-    try {
-      const saved = localStorage.getItem('sb_search_open')
-      return saved === null ? true : saved === 'true'
-    } catch(e) { return true }
+    try { const s = localStorage.getItem('sb_search_open'); return s === null ? true : s === 'true' } catch(e) { return true }
   })
   const [searching, setSearching] = useState(false)
   const [searchErr, setSearchErr] = useState('')
@@ -33,6 +27,24 @@ export default function RecipesTab({ state }) {
   const [commSubmitting, setCommSubmitting] = useState(false)
   const [commSuccess, setCommSuccess] = useState(false)
   const [likes, setLikes] = useState(new Set())
+
+  // ── Auto-open target recipe from MealsTab ──
+  useEffect(() => {
+    if (!targetRecipe) return
+    const { rid, meal } = targetRecipe
+    // Open the card
+    setOpenCards(p => ({ ...p, [rid]: true }))
+    // Fetch recipe if not cached
+    if (!recipeCache[rid]) {
+      fetchAndCache(rid, meal.name, meal.cuisine, meal.desc)
+    }
+    // Scroll to it
+    setTimeout(() => {
+      const el = document.getElementById('rc_' + rid)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 300)
+    if (onTargetHandled) onTargetHandled()
+  }, [targetRecipe])
 
   const loadComm = useCallback(async () => {
     if (commLoaded) return
@@ -59,9 +71,7 @@ export default function RecipesTab({ state }) {
       if (saved) {
         const parsed = JSON.parse(saved)
         const planKey = plan?.weekPlan?.[0]?.day
-        if (parsed._planKey === planKey) {
-          Object.assign(recipeCache, parsed)
-        }
+        if (parsed._planKey === planKey) Object.assign(recipeCache, parsed)
       }
     } catch(e) {}
     setRecipeCacheLoaded(true)
@@ -74,28 +84,33 @@ export default function RecipesTab({ state }) {
     } catch(e) {}
   }
 
+  const fetchAndCache = async (rid, name, cuisine, desc) => {
+    setLoadingCard(rid)
+    try {
+      const r = await fetchRecipe({
+        name, cuisine, desc,
+        people: parseInt(prefs.people)||2,
+        adults: parseInt(prefs.adults)||2,
+        kids: parseInt(prefs.kids)||0,
+        diet: prefs.diet||'omnivore',
+        restrictions: prefs.restrictions||'',
+        country: prefs.country||'Lebanon',
+        currency: prefs.currency||'$'
+      })
+      setRecipeCache(prev => {
+        const newCache = {...prev, [rid]: r}
+        saveRecipeCache(newCache)
+        return newCache
+      })
+    } catch(e) {}
+    setLoadingCard(null)
+  }
+
   const toggleCard = async (rid, name, cuisine, desc) => {
     const isOpen = openCards[rid]
     setOpenCards(p => ({...p, [rid]: !isOpen}))
-    // Refetch if no cache OR if cached recipe is missing history field
     if (!isOpen && (!recipeCache[rid] || recipeCache[rid].history === undefined)) {
-      setLoadingCard(rid)
-      try {
-        const r = await fetchRecipe({
-          name, cuisine, desc,
-          people: parseInt(prefs.people)||2,
-          adults: parseInt(prefs.adults)||2,
-          kids: parseInt(prefs.kids)||0,
-          diet: prefs.diet||'omnivore',
-          restrictions: prefs.restrictions||'',
-          country: prefs.country||'Lebanon',
-          currency: prefs.currency||'$'
-        })
-        const newCache = {...recipeCache, [rid]: r}
-        setRecipeCache(newCache)
-        saveRecipeCache(newCache)
-      } catch(e) {}
-      setLoadingCard(null)
+      await fetchAndCache(rid, name, cuisine, desc)
     }
   }
 
@@ -164,14 +179,12 @@ export default function RecipesTab({ state }) {
     ? plan.summary.totalEstimatedCost / (7 * 3 * (parseInt(prefs.people)||2))
     : 0
 
-  // ── Recipe body — shared by plan recipes & search result ──
   const RecipeBody = ({r}) => r ? (
-    <div className="recipe-body" style={{display:'block',padding:'0 16px 16px'}}>
-
-      {/* HISTORY SECTION */}
+    <div style={{padding:'0 16px 16px'}}>
+      {/* HISTORY */}
       {r.history && (
         <div style={{
-          display:'flex',gap:10,margin:'14px 0 10px',
+          display:'flex',gap:10,margin:'14px 0 12px',
           padding:'12px 14px',
           background:'linear-gradient(135deg,#f5f0e8,#fdf8f0)',
           borderRadius:10,
@@ -185,16 +198,14 @@ export default function RecipesTab({ state }) {
           </div>
         </div>
       )}
-
       {/* BADGES */}
-      <div style={{display:'flex',gap:8,marginBottom:4,flexWrap:'wrap'}}>
+      <div style={{display:'flex',gap:8,marginBottom:10,flexWrap:'wrap'}}>
         {r.prepTime&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--bg2)',borderRadius:99,color:'var(--t2)'}}>⏱ Prep {r.prepTime}</span>}
         {r.cookTime&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--bg2)',borderRadius:99,color:'var(--t2)'}}>🔥 Cook {r.cookTime}</span>}
         {r.difficulty&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--bg2)',borderRadius:99,color:'var(--t2)'}}>📊 {r.difficulty}</span>}
         {planCostPerMeal>0&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--al)',borderRadius:99,color:'var(--am)'}}>💰 {cur}{planCostPerMeal.toFixed(2)} /meal</span>}
         {r.calories&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--gl)',borderRadius:99,color:'var(--gm)'}}>⚡ {r.calories} kcal</span>}
       </div>
-
       {/* INGREDIENTS */}
       {(r.ingredients||[]).length>0&&<>
         <div className="recipe-section-title">Ingredients</div>
@@ -207,7 +218,6 @@ export default function RecipesTab({ state }) {
           ))}
         </div>
       </>}
-
       {/* STEPS */}
       {(r.steps||[]).length>0&&<>
         <div className="recipe-section-title">Method</div>
@@ -220,7 +230,6 @@ export default function RecipesTab({ state }) {
           ))}
         </div>
       </>}
-
       {/* TIP */}
       {r.tip&&<div className="recipe-tip">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -243,7 +252,6 @@ export default function RecipesTab({ state }) {
   return (
     <section className="sec on">
       <div className="pad" id="recipes-pad">
-
         {/* SEARCH */}
         <div className="add-box" style={{marginBottom:20}}>
           <div className="add-box-title">Search any recipe in the world</div>
@@ -269,7 +277,7 @@ export default function RecipesTab({ state }) {
               <div className="recipe-hinfo">
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                   <div style={{fontSize:10,fontWeight:500,letterSpacing:.5,textTransform:'uppercase',color:'var(--t3)',marginBottom:3}}>{searchResult.cuisine||'World cuisine'}</div>
-                  <button onClick={e=>{e.stopPropagation();setSearchResult(null);try{localStorage.removeItem('sb_last_search')}catch(e2){}}} style={{background:'none',border:'none',cursor:'pointer',fontSize:11,color:'var(--t3)',fontFamily:'var(--sans)',padding:'2px 6px',borderRadius:6,marginBottom:3}}>✕ Clear</button>
+                  <button onClick={e=>{e.stopPropagation();setSearchResult(null);try{localStorage.removeItem('sb_last_search')}catch(e2){}}} style={{background:'none',border:'none',cursor:'pointer',fontSize:11,color:'var(--t3)',fontFamily:'var(--sans)',padding:'2px 6px',borderRadius:6}}>✕ Clear</button>
                 </div>
                 <div className="recipe-meal-name">{searchResult.dishName||searchQ}</div>
                 <div style={{display:'flex',gap:8,marginTop:6,flexWrap:'wrap'}}>
@@ -277,7 +285,7 @@ export default function RecipesTab({ state }) {
                   {searchResult.cookTime&&<span style={{fontSize:11,color:'var(--t3)'}}>🔥 {searchResult.cookTime}</span>}
                 </div>
                 <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:6}}>
-                  {searchResult.pricePerServing&&<span style={{fontSize:11,padding:'3px 9px',background:'var(--al)',borderRadius:99,color:'var(--am)'}}>💰 Est. {cur}{Number(searchResult.pricePerServing).toFixed(2)} full ingredient cost in {prefs.country||'Lebanon'}</span>}
+                  {searchResult.pricePerServing&&<span style={{fontSize:11,padding:'3px 9px',background:'var(--al)',borderRadius:99,color:'var(--am)'}}>💰 Est. {cur}{Number(searchResult.pricePerServing).toFixed(2)} in {prefs.country||'Lebanon'}</span>}
                   {searchResult.calories&&<span style={{fontSize:11,padding:'3px 9px',background:'var(--gl)',borderRadius:99,color:'var(--gm)'}}>⚡ {searchResult.calories} kcal</span>}
                 </div>
               </div>
@@ -287,7 +295,7 @@ export default function RecipesTab({ state }) {
           </div>
         )}
 
-        {/* PLAN DIVIDER */}
+        {/* PLAN DIVIDER + RELOAD BUTTON */}
         {planDays.length>0&&(
           <div style={{display:'flex',alignItems:'center',gap:10,margin:'18px 0'}}>
             <div className="or-divider" style={{flex:1,margin:0}}>from your meal plan</div>
@@ -336,11 +344,11 @@ export default function RecipesTab({ state }) {
                   </div>
                   {isOpen&&(
                     <div style={{borderTop:'1px solid var(--bdr)'}}>
-                      {loadingCard===rid ? (
-                        <div className="recipe-body-loading"><div className="spin"></div>Loading recipe…</div>
-                      ) : r ? <RecipeBody r={r}/> : (
-                        <div style={{padding:'16px',fontSize:13,color:'var(--t2)'}}>Tap to load recipe details.</div>
-                      )}
+                      {loadingCard===rid
+                        ? <div className="recipe-body-loading"><div className="spin"></div>Loading recipe…</div>
+                        : r ? <RecipeBody r={r}/>
+                        : <div style={{padding:'16px',fontSize:13,color:'var(--t2)'}}>Tap to load recipe details.</div>
+                      }
                     </div>
                   )}
                 </div>
@@ -358,8 +366,6 @@ export default function RecipesTab({ state }) {
             </div>
             <div style={{fontSize:11,color:'var(--t3)',marginTop:2}}>Real recipes shared by real people — add yours below</div>
           </div>
-
-          {/* SUBMIT FORM */}
           {!commSuccess?(
             <div className="comm-add-box">
               <div className="comm-add-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Share your recipe</div>
@@ -384,8 +390,6 @@ export default function RecipesTab({ state }) {
               <button onClick={()=>setCommSuccess(false)} style={{marginTop:8,background:'none',border:'1px solid var(--bdr2)',borderRadius:'var(--r)',padding:'6px 14px',fontFamily:'var(--sans)',fontSize:12,color:'var(--t2)',cursor:'pointer'}}>+ Add another</button>
             </div>
           )}
-
-          {/* COMMUNITY FEED */}
           <div>
             {community.length===0&&commLoaded&&(
               <div className="comm-empty">
