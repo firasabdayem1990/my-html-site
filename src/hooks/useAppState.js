@@ -10,7 +10,9 @@ const LOCAL_KEY = {
 
 const defaultPrefs = {
   budget: '80',
-  people: '2',
+  adults: '2',
+  kids: '0',
+  people: '2', // kept for backward compat
   currency: '$',
   country: 'Lebanon',
   restrictions: '',
@@ -34,7 +36,6 @@ export function useAppState(user) {
   const [isDemo, setIsDemo] = useState(false)
   const [dataLoaded, setDataLoaded] = useState(false)
 
-  // Load data on mount or user change
   useEffect(() => {
     async function loadData() {
       if (user) {
@@ -47,7 +48,15 @@ export function useAppState(user) {
           ])
           if (cloudPantry) setPantry(cloudPantry)
           if (cloudPlan) setPlan(cloudPlan)
-          if (cloudPrefs) setPrefs(p => ({ ...p, ...cloudPrefs }))
+          if (cloudPrefs) setPrefs(p => {
+            const merged = { ...p, ...cloudPrefs }
+            // Migrate old 'people' field to adults if needed
+            if (!merged.adults && merged.people) merged.adults = merged.people
+            if (!merged.kids) merged.kids = '0'
+            // Keep people in sync
+            merged.people = String(parseInt(merged.adults||2) + parseInt(merged.kids||0))
+            return merged
+          })
           if (cloudChecked) setChecked(cloudChecked)
         } catch (e) {
           console.warn('Cloud load failed, using local', e)
@@ -70,7 +79,14 @@ export function useAppState(user) {
       const ch = localStorage.getItem(LOCAL_KEY.checked)
       if (ch) setChecked(new Set(JSON.parse(ch)))
       const pr = localStorage.getItem(LOCAL_KEY.prefs)
-      if (pr) setPrefs(p => ({ ...p, ...JSON.parse(pr) }))
+      if (pr) {
+        const saved = JSON.parse(pr)
+        // Migrate old 'people' to adults
+        if (!saved.adults && saved.people) saved.adults = saved.people
+        if (!saved.kids) saved.kids = '0'
+        saved.people = String(parseInt(saved.adults||2) + parseInt(saved.kids||0))
+        setPrefs(p => ({ ...p, ...saved }))
+      }
     } catch (e) {}
   }
 
@@ -81,7 +97,6 @@ export function useAppState(user) {
     const pr = newPrefs !== undefined ? newPrefs : prefs
     const dm = demo !== undefined ? demo : isDemo
 
-    // Always save to localStorage as fallback
     try {
       localStorage.setItem(LOCAL_KEY.pantry, JSON.stringify(p))
       if (!dm) localStorage.setItem(LOCAL_KEY.plan, JSON.stringify(pl))
@@ -89,7 +104,6 @@ export function useAppState(user) {
       localStorage.setItem(LOCAL_KEY.prefs, JSON.stringify(pr))
     } catch (e) {}
 
-    // Also sync to cloud
     if (user) {
       try {
         await Promise.all([
@@ -123,6 +137,8 @@ export function useAppState(user) {
   const updatePrefs = useCallback((newPrefs) => {
     setPrefs(p => {
       const merged = { ...p, ...newPrefs }
+      // Always keep people in sync with adults + kids
+      merged.people = String(parseInt(merged.adults||2) + parseInt(merged.kids||0))
       saveAll({ newPrefs: merged })
       return merged
     })
