@@ -69,16 +69,37 @@ const getPriceContext = (country) => {
   return COUNTRY_PRICE_CONTEXT[country] || `${country}: use realistic local supermarket prices for this country. Research typical costs for staple ingredients in ${country}.`
 }
 
-export async function generateMealPlan({ budget, adults, kids, people, currency, country, diet, health, restrictions, pantry, cuisines, calTarget }) {
+export async function generateMealPlan({ budget, adults, kids, people, currency, country, diet, health, restrictions, pantry, cuisines, cuisinePercs, calTarget }) {
   const restrictionLine = restrictions
     ? `CRITICAL: STRICT allergies/restrictions — NEVER include: ${restrictions}. Non-negotiable.`
     : 'No restrictions.'
+
+  const pregnantLine = (health||[]).includes('pregnant-friendly')
+    ? `PREGNANT-FRIENDLY RULES — STRICT:
+- NO raw fish, sushi, sashimi, oysters, or undercooked seafood
+- NO deli meats, hot dogs, or processed meats unless heated
+- NO soft cheeses (brie, camembert, blue cheese, feta unless cooked)
+- NO high-mercury fish (shark, swordfish, king mackerel, tilefish)
+- NO raw/undercooked eggs or meat
+- INCLUDE folate-rich foods: lentils, spinach, asparagus, chickpeas
+- INCLUDE iron-rich foods: lean beef, chicken, beans, fortified cereals
+- INCLUDE calcium-rich foods: dairy, broccoli, almonds
+- INCLUDE omega-3 safe sources: salmon (cooked), sardines, walnuts
+- Meals should be well-cooked, nutritious and safe for pregnancy`
+    : ''
 
   const calLine = calTarget > 0
     ? `CALORIE TARGET per adult: ~${calTarget} kcal/day. Breakdown: Breakfast ~${Math.round(calTarget * 0.25)} kcal, Lunch ~${Math.round(calTarget * 0.35)} kcal, Dinner ~${Math.round(calTarget * 0.35)} kcal. Add "calories" field (integer kcal/serving for ONE adult) to each meal. Be precise — vary meals between ${Math.round(calTarget*0.85)} and ${Math.round(calTarget*1.05)} daily total.`
     : 'No calorie target. Add a realistic "calories" field (integer kcal/serving for one adult) to each meal anyway.'
 
-  const cuisineInstruction = cuisines.length
+  const cuisineInstruction = cuisinePercs && cuisinePercs.length
+    ? `CUISINE ALLOCATION for the week (strictly follow these percentages):
+${cuisinePercs.map(c => {
+  const days = Math.round((c.pct / 100) * 21)
+  return `- ${c.name}: ${c.pct}% (~${days} meals out of 21)`
+}).join('\n')}
+Distribute meals across the week proportionally. Each meal must include "cuisine" field matching one of the above.`
+    : cuisines.length
     ? `Cuisines: ${cuisines.join(', ')}. Rotate authentically across the week. Include cuisine name per meal.`
     : 'Use varied global cuisines, rotating daily.'
 
@@ -107,6 +128,7 @@ BUDGET RULES — NON-NEGOTIABLE:
 - VERIFY: sum all estimatedCost values before finalizing — if total exceeds ${currency}${budget}, reduce quantities or swap expensive ingredients
 
 ${restrictionLine}
+${pregnantLine}
 
 ${calLine}
 
