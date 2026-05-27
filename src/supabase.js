@@ -201,6 +201,27 @@ export async function toggleLike(userId, recipeId, isLiked) {
   }
 }
 
+// ── SEARCH HISTORY & EXTRA ITEMS ──
+export async function saveUserMeta(userId, key, value) {
+  if (!supabase) return
+  const { error } = await supabase.from('profiles').upsert({
+    id: userId,
+    [key]: value
+  }, { onConflict: 'id' })
+  if (error) throw error
+}
+
+export async function loadUserMeta(userId, key) {
+  if (!supabase) return null
+  const { data, error } = await supabase
+    .from('profiles')
+    .select(key)
+    .eq('id', userId)
+    .maybeSingle()
+  if (error) throw error
+  return data?.[key] || null
+}
+
 // ── RECIPE CACHE ──
 export async function saveRecipeCacheCloud(userId, planKey, recipeId, recipeData) {
   if (!supabase) return
