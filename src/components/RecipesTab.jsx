@@ -3,8 +3,40 @@ import { fetchRecipe, searchRecipe } from '../ai.js'
 import { loadCommunityRecipes, submitCommunityRecipe, deleteCommunityRecipe, toggleLike, loadUserLikes, submitRating, loadUserRatings, loadComments, submitComment, deleteComment, saveRecipeCacheCloud, loadRecipeCacheCloud, clearRecipeCacheCloud } from '../supabase.js'
 import { supabase } from '../supabase.js'
 
-const CUISINE_FLAGS = {'Lebanese':'🇱🇧','Mediterranean':'🌊','Italian':'🇮🇹','French':'🇫🇷','Mexican':'🇲🇽','Indian':'🇮🇳','Japanese':'🇯🇵','Chinese':'🇨🇳','Thai':'🇹🇭','Greek':'🇬🇷','Turkish':'🇹🇷','Moroccan':'🇲🇦','Syrian':'🇸🇾','Korean':'🇰🇷','Spanish':'🇪🇸','Persian':'🇮🇷'}
-const flag = (c) => CUISINE_FLAGS[c] || '🍽️'
+const CUISINE_CODES = {
+  'Lebanese':'lb','Mediterranean':null,'Italian':'it','French':'fr',
+  'Mexican':'mx','Indian':'in','Japanese':'jp','Chinese':'cn','Thai':'th',
+  'Greek':'gr','Turkish':'tr','Moroccan':'ma','Syrian':'sy','Egyptian':'eg',
+  'American':'us','Korean':'kr','Spanish':'es','Persian':'ir','Ethiopian':'et',
+  'Brazilian':'br','Vietnamese':'vn','Indonesian':'id','Filipino':'ph',
+  'Pakistani':'pk','Jordanian':'jo','Palestinian':'ps','Iraqi':'iq',
+  'Saudi':'sa','Emirati':'ae','Tunisian':'tn','Armenian':'am','Georgian':'ge',
+  'Peruvian':'pe','Nigerian':'ng','Caribbean':null,'Uzbek':'uz',
+  'Latvian':'lv','Lithuanian':'lt','Estonian':'ee','Polish':'pl','Russian':'ru',
+  'Ukrainian':'ua','Czech':'cz','Hungarian':'hu','Romanian':'ro','Bulgarian':'bg',
+  'Serbian':'rs','Croatian':'hr','Portuguese':'pt','Dutch':'nl','Belgian':'be',
+  'Swedish':'se','Norwegian':'no','Danish':'dk','Finnish':'fi','Austrian':'at',
+  'Swiss':'ch','German':'de','Argentinian':'ar','Colombian':'co','Venezuelan':'ve',
+  'Chilean':'cl','Ecuadorian':'ec','Ghanaian':'gh','Kenyan':'ke','Tanzanian':'tz',
+  'Sudanese':'sd','Libyan':'ly','Algerian':'dz','Yemeni':'ye','Omani':'om',
+  'Kuwaiti':'kw','Bahraini':'bh','Qatari':'qa','Bangladeshi':'bd',
+  'Sri Lankan':'lk','Nepali':'np','Malaysian':'my','Singaporean':'sg',
+  'Israeli':'il','Australian':'au','South African':'za','New Zealand':'nz'
+}
+
+const FlagImg = ({code, size=16}) => (
+  <img src={`https://flagcdn.com/w20/${code.toLowerCase()}.png`}
+    width={size} height={size*0.75}
+    style={{borderRadius:2,objectFit:'cover',flexShrink:0,verticalAlign:'middle'}}
+    onError={e=>{e.target.style.display='none'}}
+    alt=""/>
+)
+
+const flag = (c) => {
+  const code = CUISINE_CODES[c]
+  if (code) return <FlagImg code={code} size={14}/>
+  return <span style={{fontSize:13}}>🍽️</span>
+}
 const QUICK_RECIPES = ['Spaghetti Carbonara','Chicken Shawarma','Beef Tacos','Pad Thai','Knafeh','Sushi Rolls']
 const EMOJI_LIST = ['😋','🔥','❤️','👏','😍','🤤','👌','⭐','🥇','💯']
 
