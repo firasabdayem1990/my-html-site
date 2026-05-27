@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { fetchRecipe, searchRecipe } from '../ai.js'
-import { loadCommunityRecipes, submitCommunityRecipe, deleteCommunityRecipe, toggleLike, loadUserLikes, submitRating, loadUserRatings, loadComments, submitComment, deleteComment } from '../supabase.js'
+import { loadCommunityRecipes, submitCommunityRecipe, deleteCommunityRecipe, toggleLike, loadUserLikes, submitRating, loadUserRatings, loadComments, submitComment, deleteComment, saveRecipeCacheCloud, loadRecipeCacheCloud, clearRecipeCacheCloud } from '../supabase.js'
 import { supabase } from '../supabase.js'
 
 const CUISINE_FLAGS = {'Lebanese':'🇱🇧','Mediterranean':'🌊','Italian':'🇮🇹','French':'🇫🇷','Mexican':'🇲🇽','Indian':'🇮🇳','Japanese':'🇯🇵','Chinese':'🇨🇳','Thai':'🇹🇭','Greek':'🇬🇷','Turkish':'🇹🇷','Moroccan':'🇲🇦','Syrian':'🇸🇾','Korean':'🇰🇷','Spanish':'🇪🇸','Persian':'🇮🇷'}
@@ -75,23 +75,42 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
   useEffect(() => { loadComm() }, [])
 
   const [recipeCacheLoaded, setRecipeCacheLoaded] = useState(false)
-  if (!recipeCacheLoaded) {
+  useEffect(() => {
+    if (recipeCacheLoaded) return
+    // Load from localStorage first (fast)
     try {
       const saved = localStorage.getItem('sb_recipe_cache')
       if (saved) {
         const parsed = JSON.parse(saved)
         const planKey = plan?.weekPlan?.[0]?.day
-        if (parsed._planKey === planKey) Object.assign(recipeCache, parsed)
+        if (parsed._planKey === planKey) setRecipeCache(p => ({...p, ...parsed}))
       }
     } catch(e) {}
+    // Then load from cloud (authoritative)
+    if (state.user && plan?.weekPlan?.[0]?.day) {
+      const planKey = plan.weekPlan[0].day
+      loadRecipeCacheCloud(state.user.id, planKey).then(cloudCache => {
+        if (Object.keys(cloudCache).length > 0) {
+          setRecipeCache(p => ({...p, ...cloudCache}))
+        }
+      }).catch(() => {})
+    }
     setRecipeCacheLoaded(true)
-  }
+  }, [state.user, plan])
 
   const saveRecipeCache = (cache) => {
     try {
       const planKey = plan?.weekPlan?.[0]?.day
       localStorage.setItem('sb_recipe_cache', JSON.stringify({...cache, _planKey: planKey}))
     } catch(e) {}
+  }
+
+  const saveRecipeCacheEntry = async (rid, recipe) => {
+    if (!state.user) return
+    try {
+      const planKey = plan?.weekPlan?.[0]?.day || 'default'
+      await saveRecipeCacheCloud(state.user.id, planKey, rid, recipe)
+    } catch(e) { console.warn('Cloud cache save failed:', e.message) }
   }
 
   const fetchAndCache = async (rid, name, cuisine, desc) => {
@@ -112,6 +131,8 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
         saveRecipeCache(newCache)
         return newCache
       })
+      // Save to cloud
+      await saveRecipeCacheEntry(rid, r)
     } catch(e) {}
     setLoadingCard(null)
   }
@@ -553,8 +574,9 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
         {planDays.length>0&&(
           <div style={{display:'flex',alignItems:'center',gap:10,margin:'18px 0'}}>
             <div className="or-divider" style={{flex:1,margin:0}}>from your meal plan</div>
-            <button onClick={()=>{
+            <button onClick={async()=>{
               try { localStorage.removeItem('sb_recipe_cache') } catch(e) {}
+              if (state.user) await clearRecipeCacheCloud(state.user.id).catch(()=>{})
               setRecipeCache({})
               setOpenCards({})
             }} style={{fontSize:11,padding:'4px 10px',background:'#fff3cd',border:'1px solid #e6c84a',borderRadius:99,color:'#856404',cursor:'pointer',fontFamily:'var(--sans)',fontWeight:600,whiteSpace:'nowrap',flexShrink:0}}>
