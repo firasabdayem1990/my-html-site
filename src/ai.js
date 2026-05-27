@@ -193,6 +193,7 @@ export async function fetchRecipe({ name, cuisine, desc, people, adults, kids, d
     + ` calories = precise integer kcal for ONE adult serving (use real nutrition data).`
     + ` pricePerServing = realistic cost in ${currency} for ALL ingredients to make this dish in ${country} (total shopping cost).`
     + ` history = 2 concise sentences about the origin and cultural story of this dish. Be brief and interesting.`
+    + ` IMPORTANT for ingredients qty: use REALISTIC SUPERMARKET QUANTITIES only — what you actually buy in a store. Examples: "1 can (400g)" not "400g", "1 bunch" not "30g", "1 bag (500g)" not "60g lentils", "1 whole" not "1/4 cucumber", "1 lemon" not "30ml lemon juice", "1 pack (250g)" not "200g chicken". Always round up to the nearest sellable unit.`
 
   const raw = await callAPI('recipe', {
     model: 'claude-sonnet-4-5-20250929',
@@ -212,6 +213,7 @@ export async function searchRecipe({ query, people, adults, kids, diet, restrict
     + ` calories = precise integer kcal/serving for ONE adult (use real nutrition data).`
     + ` pricePerServing = realistic TOTAL cost in ${currency} to buy ALL ingredients to make this dish from scratch in ${country}.`
     + ` history = 2 concise sentences about the origin and cultural story of this dish. Be brief and interesting.`
+    + ` IMPORTANT for ingredients qty: use REALISTIC SUPERMARKET QUANTITIES — what you actually buy in a store. Examples: "1 can (400g)" not "400g", "1 bunch" not "30g spinach", "1 bag (500g)" not "60g lentils", "1 whole" not "1/4 cucumber", "1 lemon" not "30ml juice", "1 pack (250g)" not "200g mince". Always round up to nearest sellable unit. Never use fractions of fresh produce.`
 
   const raw = await callAPI('recipe', {
     model: 'claude-sonnet-4-5-20250929',
