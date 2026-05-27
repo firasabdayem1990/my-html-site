@@ -1,9 +1,8 @@
 // api/generate.js — Vercel serverless function
-// Anthropic key hidden server-side + per-user usage limits
-
 import { createClient } from '@supabase/supabase-js';
 
-const FREE_LIMIT = 10; // generations per month per user
+const FREE_LIMIT = 10;       // generations per month for registered users
+const GUEST_LIMIT = 0;       // generations per month for guests (by IP)
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -16,52 +15,97 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'ANTHROPIC_KEY not configured' });
   }
 
-  // ── USAGE LIMITS ──
-  // Get user token from Authorization header
   const authHeader = req.headers['authorization'];
   const token = authHeader?.replace('Bearer ', '');
+  const month = new Date().toISOString().slice(0, 7);
 
   if (token && process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
+    // ── REGISTERED USER ──
     try {
-      // Use service key to bypass RLS
       const sb = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL,
         process.env.SUPABASE_SERVICE_KEY
       );
 
-      // Get user from token
       const { data: { user }, error: authErr } = await sb.auth.getUser(token);
 
       if (user && !authErr) {
-        const month = new Date().toISOString().slice(0, 7); // '2026-05'
+        // Check if admin → unlimited
+        const { data: profile } = await sb
+          .from('profiles')
+          .select('is_admin')
+          .eq('id', user.id)
+          .maybeSingle();
 
-        // Get current usage
+        if (profile?.is_admin) {
+          // Admin — skip all limits, go straight to AI call
+          console.log('Admin user — no limits applied');
+        } else {
+          // Regular user — check monthly limit
+          const { data: usage } = await sb
+            .from('usage')
+            .select('generations')
+            .eq('user_id', user.id)
+            .eq('month', month)
+            .maybeSingle();
+
+          const count = usage?.generations || 0;
+
+          if (count >= FREE_LIMIT) {
+            return res.status(429).json({
+              error: `Monthly limit reached (${FREE_LIMIT} generations/month). You've used ${count}/${FREE_LIMIT} this month. Resets next month.`
+            });
+          }
+
+          await sb.from('usage').upsert({
+            user_id: user.id,
+            month,
+            generations: count + 1
+          }, { onConflict: 'user_id,month' });
+        }
+      }
+    } catch (e) {
+      console.warn('Usage tracking failed:', e.message);
+    }
+  } else {
+    // ── GUEST USER — limit by IP ──
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
+      try {
+        const sb = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.SUPABASE_SERVICE_KEY
+        );
+
+        const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
+          || req.headers['x-real-ip']
+          || 'unknown';
+
+        const guestKey = `guest_${ip}`;
+
         const { data: usage } = await sb
           .from('usage')
           .select('generations')
-          .eq('user_id', user.id)
+          .eq('user_id', guestKey)
           .eq('month', month)
           .maybeSingle();
 
         const count = usage?.generations || 0;
 
-        // Check limit
-        if (count >= FREE_LIMIT) {
+        if (count >= GUEST_LIMIT) {
           return res.status(429).json({
-            error: `Monthly limit reached (${FREE_LIMIT} generations/month). You've used ${count}/${FREE_LIMIT} this month.`
+            error: `Guest limit reached (${GUEST_LIMIT} free generations). Create a free account to get ${FREE_LIMIT} generations/month!`
           });
         }
 
-        // Increment usage
         await sb.from('usage').upsert({
-          user_id: user.id,
+          user_id: guestKey,
           month,
           generations: count + 1
         }, { onConflict: 'user_id,month' });
+
+      } catch (e) {
+        console.warn('Guest usage tracking failed:', e.message);
       }
-    } catch (e) {
-      console.warn('Usage tracking failed:', e.message);
-      // Don't block the request if usage tracking fails
     }
   }
 
