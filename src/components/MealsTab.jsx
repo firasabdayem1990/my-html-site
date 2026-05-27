@@ -30,9 +30,12 @@ export default function MealsTab({ state, onViewRecipe, onRegenerate }) {
 
   const s = plan.summary || {}
   const cur = plan._cur || '$'
-  const people = parseInt(prefs.people) || 2
+  const adults = parseInt(prefs.adults) || 2
+  const kids = parseInt(prefs.kids) || 0
+  const people = adults + kids
+  const effectivePortions = adults + kids * 0.5
   const totalCost = typeof s.totalEstimatedCost === 'number' ? s.totalEstimatedCost : 0
-  const costPerMeal = totalCost > 0 ? totalCost / (7 * 3 * people) : 0
+  const costPerMeal = totalCost > 0 ? totalCost / (7 * 3 * effectivePortions) : 0
   const sav = typeof s.savingsPercent === 'number' ? Math.round(s.savingsPercent) + '%' : '—'
   const cuisines = plan._cuisines || plan.cuisinesUsed || []
 
@@ -52,7 +55,7 @@ export default function MealsTab({ state, onViewRecipe, onRegenerate }) {
           <div className="stat"><div className="stat-val">{sav}</div><div className="stat-lbl">Below avg. weekly spend</div></div>
           {costPerMeal > 0 && <div className="stat fu" style={{gridColumn:'1/-1',background:'var(--gl)',border:'1px solid rgba(31,78,26,.12)'}}>
             <div className="stat-val" style={{fontSize:16,color:'var(--g)'}}>{cur}{costPerMeal.toFixed(2)}</div>
-            <div className="stat-lbl" style={{color:'var(--gm)'}}>Est. cost per meal · total ÷ 21 meals ÷ {people} people</div>
+            <div className="stat-lbl" style={{color:'var(--gm)'}}>Est. cost per meal · {adults} adult{adults!==1?"s":""}{kids>0?` + ${kids} kid${kids!==1?"s":""}`:""}</div>
           </div>}
         </div>
 
