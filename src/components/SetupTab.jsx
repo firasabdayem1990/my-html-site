@@ -201,11 +201,7 @@ export default function SetupTab({ state, onPlanGenerated }) {
           <div className="h-sub" style={{fontSize:12,opacity:.85}}>Personalized meal plans built around your budget, diet & preferences.</div>
         </div>
 
-        {/* AI BADGE */}
-        <div style={{background:'var(--gl)',border:'1px solid rgba(31,78,26,.15)',borderRadius:'var(--r)',padding:'8px 12px',display:'flex',alignItems:'center',gap:7,marginBottom:16}}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="var(--g)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13,flexShrink:0}}><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-          <span style={{fontSize:11,color:'var(--g)'}}>AI powered — no API key needed. Just generate your plan.</span>
-        </div>
+
 
         {/* BUDGET & HOUSEHOLD */}
         <div className="flbl">💰 Budget & household</div>
