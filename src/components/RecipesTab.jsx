@@ -21,6 +21,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
     try { const s = localStorage.getItem('sb_search_open'); return s === null ? true : s === 'true' } catch(e) { return true }
   })
   const [searching, setSearching] = useState(false)
+  const [addedToShopping, setAddedToShopping] = useState(false)
   const [searchErr, setSearchErr] = useState('')
   const [community, setCommunity] = useState([])
   const [commLoaded, setCommLoaded] = useState(false)
@@ -141,6 +142,26 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
       try { localStorage.setItem('sb_last_search', JSON.stringify(r)) } catch(e) {}
     } catch(e) { setSearchErr(e.message) }
     setSearching(false)
+  }
+
+  const addToShopping = () => {
+    if (!searchResult?.ingredients?.length) return
+    const { updateExtraItems, extraItems } = state
+    const newItems = {
+      dishName: searchResult.dishName || searchQ,
+      cuisine: searchResult.cuisine || '',
+      pricePerServing: searchResult.pricePerServing || 0,
+      ingredients: searchResult.ingredients.map(ing => ({
+        name: ing.name,
+        qty: ing.qty || '',
+        estimatedCost: 0
+      }))
+    }
+    // Remove same dish if already added
+    const filtered = (extraItems || []).filter(e => e.dishName !== newItems.dishName)
+    updateExtraItems([...filtered, newItems])
+    setAddedToShopping(true)
+    setTimeout(() => setAddedToShopping(false), 2000)
   }
 
   const handleRating = async (recipeId, rating) => {
@@ -481,6 +502,13 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                   {searchResult.pricePerServing&&<span style={{fontSize:11,padding:'3px 9px',background:'var(--al)',borderRadius:99,color:'var(--am)'}}>💰 Est. {cur}{Number(searchResult.pricePerServing).toFixed(2)} in {prefs.country||'Lebanon'}</span>}
                   {searchResult.calories&&<span style={{fontSize:11,padding:'3px 9px',background:'var(--gl)',borderRadius:99,color:'var(--gm)'}}>⚡ {searchResult.calories} kcal</span>}
                 </div>
+                <button onClick={e=>{e.stopPropagation();addToShopping()}}
+                  style={{marginTop:8,display:'inline-flex',alignItems:'center',gap:5,padding:'6px 12px',
+                    background:addedToShopping?'var(--g)':'var(--bg2)',color:addedToShopping?'#fff':'var(--t2)',
+                    border:'1px solid',borderColor:addedToShopping?'var(--g)':'var(--bdr2)',
+                    borderRadius:99,cursor:'pointer',fontFamily:'var(--sans)',fontSize:11,fontWeight:600,transition:'all .2s'}}>
+                  {addedToShopping ? '✓ Added to shopping!' : '🛒 Add ingredients to shopping'}
+                </button>
               </div>
               <div className="recipe-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
             </div>
