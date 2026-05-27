@@ -296,7 +296,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
   )
 
   // ── Comments Section ──
-  const CommentsSection = ({recipeId}) => {
+  const renderComments = (recipeId) => {
     const recipeComments = comments[recipeId] || []
     const isOpen = commentOpen[recipeId]
     const recipe = community.find(r => r.id === recipeId)
@@ -679,7 +679,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                         </button>
                       )}
                       {/* COMMENTS */}
-                      <CommentsSection recipeId={r.id}/>
+                      {renderComments(r.id)}
                     </div>
                   )}
                 </div>
