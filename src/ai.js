@@ -190,11 +190,14 @@ export async function fetchRecipe({ name, cuisine, desc, people, adults, kids, d
     + ` Serves ${adults || people} adults${(kids||0)>0 ? ` + ${kids} children` : ''} (${effectivePortions} effective portions).`
     + ` Diet: ${diet}. Restrictions: ${restrictions || 'none'}. Country: ${country}. Currency: ${currency}.${kidsNote}`
     + ` Prices: ${priceContext}`
-    + ` Return JSON only, no markdown: {"prepTime":"","cookTime":"","difficulty":"","calories":0,"pricePerServing":0,"ingredients":[{"qty":"","name":"","note":""}],"steps":[""],"tip":"","history":""}.`
+    + ` Return JSON only, no markdown: {"prepTime":"","cookTime":"","difficulty":"","calories":0,"pricePerServing":0,"ingredients":[{"cookQty":"","shopQty":"","name":"","note":""}],"steps":[""],"tip":"","history":""}.`
     + ` calories = precise integer kcal for ONE adult serving (use real nutrition data).`
     + ` pricePerServing = realistic cost in ${currency} for ALL ingredients to make this dish in ${country} (total shopping cost).`
     + ` history = 2 concise sentences about the origin and cultural story of this dish. Be brief and interesting.`
-    + ` IMPORTANT for ingredients qty: use REALISTIC SUPERMARKET QUANTITIES only — what you actually buy in a store. Examples: "1 can (400g)" not "400g", "1 bunch" not "30g", "1 bag (500g)" not "60g lentils", "1 whole" not "1/4 cucumber", "1 lemon" not "30ml lemon juice", "1 pack (250g)" not "200g chicken". Always round up to the nearest sellable unit.`
+    + ` For each ingredient provide TWO quantities:`
+    + ` 1) cookQty = EXACT cooking amount (precise): "2 tbsp", "1/2 tsp", "3 cloves", "1/4 cup", "200g", "1 pinch"`
+    + ` 2) shopQty = REALISTIC store purchase unit (what you buy): "1 bottle", "1 bulb", "1 bag (500g)", "1 can (400g)", "1 bunch", "1 whole", "1 pack (250g)"`
+    + ` Never use fractions for shopQty. Never say "1/4 cucumber" — say "1 whole cucumber". Never say "30ml olive oil" — say "1 bottle olive oil".`
 
   const raw = await callAPI('recipe', {
     model: 'claude-sonnet-4-5-20250929',
@@ -210,11 +213,14 @@ export async function searchRecipe({ query, people, adults, kids, diet, restrict
 
   const prompt = `Recipe: "${query}". Serves ${adults || people} adults${(kids||0)>0 ? ` + ${kids} children` : ''} (${effectivePortions} effective portions). Diet: ${diet}. Restrictions: ${restrictions || 'none'}. Country: ${country}. Currency: ${currency}.`
     + ` Prices: ${priceContext}`
-    + ` Return JSON only: {"dishName":"","cuisine":"","prepTime":"","cookTime":"","difficulty":"","servings":${people},"pricePerServing":0,"calories":0,"ingredients":[{"qty":"","name":"","note":""}],"steps":[""],"tip":"","history":"","funFact":""}.`
+    + ` Return JSON only: {"dishName":"","cuisine":"","prepTime":"","cookTime":"","difficulty":"","servings":${people},"pricePerServing":0,"calories":0,"ingredients":[{"cookQty":"","shopQty":"","name":"","note":""}],"steps":[""],"tip":"","history":"","funFact":""}.`
     + ` calories = precise integer kcal/serving for ONE adult (use real nutrition data).`
     + ` pricePerServing = realistic TOTAL cost in ${currency} to buy ALL ingredients to make this dish from scratch in ${country}.`
     + ` history = 2 concise sentences about the origin and cultural story of this dish. Be brief and interesting.`
-    + ` IMPORTANT for ingredients qty: use REALISTIC SUPERMARKET QUANTITIES — what you actually buy in a store. Examples: "1 can (400g)" not "400g", "1 bunch" not "30g spinach", "1 bag (500g)" not "60g lentils", "1 whole" not "1/4 cucumber", "1 lemon" not "30ml juice", "1 pack (250g)" not "200g mince". Always round up to nearest sellable unit. Never use fractions of fresh produce.`
+    + ` For each ingredient provide TWO quantities:`
+    + ` 1) cookQty = EXACT cooking amount: "2 tbsp olive oil", "1/2 tsp salt", "3 garlic cloves", "1/4 cup tahini"`
+    + ` 2) shopQty = REALISTIC store unit: "1 bottle olive oil", "1 jar salt", "1 bulb garlic", "1 jar tahini"`
+    + ` shopQty must be what you actually buy — no fractions, no grams for fresh produce.`
 
   const raw = await callAPI('recipe', {
     model: 'claude-sonnet-4-5-20250929',
