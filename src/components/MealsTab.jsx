@@ -101,8 +101,8 @@ export default function MealsTab({ state, onViewRecipe, onRegenerate }) {
             <div className="meal-list">
               {['breakfast','lunch','dinner'].map(slot => {
                 const m = day[slot] || {}
-                const calBadge = m.calories ? `<span class="mcal">⚡ ${m.calories} kcal</span>` : ''
-                const priceBadge = costPerMeal > 0 ? `<span class="mprice">💰 ${cur}${costPerMeal.toFixed(2)} /meal</span>` : ''
+                // Build recipe ID the same way RecipesTab does
+                const rid = `${day.day}_${slot}`.replace(/\s/g, '_')
                 return (
                   <div key={slot} className="mcrd" style={{flexDirection:'column',gap:0}}>
                     <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
@@ -117,10 +117,12 @@ export default function MealsTab({ state, onViewRecipe, onRegenerate }) {
                         {m.cuisine && <div className="mcuisine"><span className="flag">{flag(m.cuisine)}</span>{m.cuisine}</div>}
                       </div>
                     </div>
-                    <button className="recipe-load-btn" style={{marginTop:10}} onClick={onViewRecipe}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-                      View recipe
-                    </button>
+                    {m.name && (
+                      <button className="recipe-load-btn" style={{marginTop:10}} onClick={() => onViewRecipe(rid, m)}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                        View recipe
+                      </button>
+                    )}
                   </div>
                 )
               })}
