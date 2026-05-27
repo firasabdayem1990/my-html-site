@@ -163,6 +163,7 @@ export default function SetupTab({ state, onPlanGenerated }) {
         restrictions: prefs.restrictions || '',
         pantry: pantry || [],
         cuisines: prefs.cuisines || [],
+        cuisinePercs: prefs.cuisinePercs || [],
         calTarget: prefs.calTarget || 0
       })
       plan._cur = prefs.currency || '$'
@@ -412,13 +413,13 @@ export default function SetupTab({ state, onPlanGenerated }) {
         {/* HEALTH */}
         <div className="flbl">❤️ Health mode <span>(optional)</span></div>
         <div className="chips">
-          {['heart-healthy','low-sugar','high-energy','low-calorie'].map(h=>(
+          {['heart-healthy','low-sugar','high-energy','low-calorie','pregnant-friendly'].map(h=>(
             <button key={h} className={`chip${(prefs.health||[]).includes(h)?' on hon':''}`}
               onClick={()=>{
                 const health = prefs.health||[]
                 updatePrefs({health: health.includes(h)?health.filter(x=>x!==h):[...health,h]})
               }}>
-              {h==='heart-healthy'?'❤️':h==='low-sugar'?'🍬':h==='high-energy'?'⚡':'🧘'} {h.split('-').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ')}
+              {h==='heart-healthy'?'❤️':h==='low-sugar'?'🍬':h==='high-energy'?'⚡':h==='pregnant-friendly'?'🤰':'🧘'} {h.split('-').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ')}
             </button>
           ))}
         </div>
