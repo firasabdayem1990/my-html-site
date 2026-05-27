@@ -1,6 +1,48 @@
 import { useState } from 'react'
 import { generateMealPlan } from '../ai.js'
 
+// Flag image helper — more reliable than emoji flags
+const FlagImg = ({code, size=16}) => (
+  <img src={`https://flagcdn.com/w20/${code.toLowerCase()}.png`} 
+    width={size} height={size*0.75} 
+    style={{borderRadius:2,objectFit:'cover',flexShrink:0}}
+    onError={e=>{e.target.style.display='none'}}
+    alt=""
+  />
+)
+
+const CUISINE_CODES = {
+  'Lebanese':'lb','Mediterranean':null,'Italian':'it','French':'fr',
+  'Mexican':'mx','Indian':'in','Japanese':'jp','Chinese':'cn','Thai':'th',
+  'Greek':'gr','Turkish':'tr','Moroccan':'ma','Syrian':'sy','Egyptian':'eg',
+  'American':'us','Korean':'kr','Spanish':'es','Persian':'ir','Ethiopian':'et',
+  'Brazilian':'br','Vietnamese':'vn','Indonesian':'id','Filipino':'ph',
+  'Pakistani':'pk','Jordanian':'jo','Palestinian':'ps','Iraqi':'iq',
+  'Saudi':'sa','Emirati':'ae','Tunisian':'tn','Armenian':'am','Georgian':'ge',
+  'Peruvian':'pe','Nigerian':'ng','Caribbean':null,'Uzbek':'uz',
+  'Latvian':'lv','Lithuanian':'lt','Estonian':'ee','Polish':'pl','Russian':'ru',
+  'Ukrainian':'ua','Czech':'cz','Hungarian':'hu','Romanian':'ro','Bulgarian':'bg',
+  'Serbian':'rs','Croatian':'hr','Portuguese':'pt','Dutch':'nl','Belgian':'be',
+  'Swedish':'se','Norwegian':'no','Danish':'dk','Finnish':'fi','Austrian':'at',
+  'Swiss':'ch','German':'de','Argentinian':'ar','Colombian':'co','Venezuelan':'ve',
+  'Chilean':'cl','Ecuadorian':'ec','Ghanaian':'gh','Kenyan':'ke','Tanzanian':'tz',
+  'Sudanese':'sd','Libyan':'ly','Algerian':'dz','Yemeni':'ye','Omani':'om',
+  'Kuwaiti':'kw','Bahraini':'bh','Qatari':'qa','Bangladeshi':'bd',
+  'Sri Lankan':'lk','Nepali':'np','Burmese':'mm','Malaysian':'my',
+  'Singaporean':'sg','Cambodian':'kh','Laotian':'la','Taiwanese':'tw',
+  'Mongolian':'mn','Kazakhstani':'kz','Afghan':'af','Israeli':'il',
+  'Cypriot':'cy','Maltese':'mt','Icelandic':'is','New Zealand':'nz',
+  'Australian':'au','South African':'za','Zimbabwean':'zw','Mozambican':'mz',
+  'Senegalese':'sn','Ivorian':'ci','Cameroonian':'cm','Congolese':'cd',
+  'Keto':null,'High-protein':null
+}
+
+const CuisineFlag = ({name, size=16}) => {
+  const code = CUISINE_CODES[name]
+  if (!code) return <span style={{fontSize:size,lineHeight:1}}>🌍</span>
+  return <FlagImg code={code} size={size}/>
+}
+
 const ALL_CUISINES = [
   {n:'Lebanese',f:'🇱🇧'},{n:'Mediterranean',f:'🌊'},{n:'Italian',f:'🇮🇹'},
   {n:'French',f:'🇫🇷'},{n:'Mexican',f:'🇲🇽'},{n:'Indian',f:'🇮🇳'},
@@ -373,7 +415,7 @@ export default function SetupTab({ state, onPlanGenerated }) {
           {(prefs.cuisines||[]).map(c=>{
             const ci = ALL_CUISINES.find(x=>x.n===c)
             return <span key={c} className="sel-tag">
-              <span className="flag">{ci?.f||'🌍'}</span>{c}
+              <span className="flag"><CuisineFlag name={c.name}/></span>{c}
               <button className="rm" onClick={()=>toggleCuisine(c)}>×</button>
             </span>
           })}
@@ -381,7 +423,7 @@ export default function SetupTab({ state, onPlanGenerated }) {
         <div className="cuisine-featured">
           {[{n:'Lebanese',f:'🇱🇧'},{n:'Italian',f:'🇮🇹'},{n:'Indian',f:'🇮🇳'},{n:'Japanese',f:'🇯🇵'},{n:'Mexican',f:'🇲🇽'}].map(c=>(
             <button key={c.n} className={`cchip${(prefs.cuisines||[]).includes(c.n)?' on':''}`} onClick={()=>toggleCuisine(c.n)}>
-              <span className="flag">{c.f}</span><span className="cname">{c.n}</span>
+              <CuisineFlag name={c.n} size={14}/><span className="cname">{c.n}</span>
             </button>
           ))}
         </div>
@@ -394,7 +436,7 @@ export default function SetupTab({ state, onPlanGenerated }) {
             {filtered.length === 0 && <div style={{padding:'10px 14px',fontSize:12,color:'var(--t3)'}}>No cuisines found</div>}
             {filtered.map(c=>(
               <div key={c.n} className={`cdrop-item${(prefs.cuisines||[]).includes(c.n)?' picked':''}`} onClick={()=>{toggleCuisine(c.n);setCuisineSearch('')}}>
-                <span className="flag">{c.f}</span><div className="cinfo"><div>{c.n}</div></div>
+                <CuisineFlag name={c.n} size={14}/><div className="cinfo"><div>{c.n}</div></div>
               </div>
             ))}
           </div>
