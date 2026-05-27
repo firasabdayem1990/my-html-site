@@ -409,40 +409,107 @@ export default function SetupTab({ state, onPlanGenerated }) {
           )}
         </div>
 
-        {/* CUISINES */}
-        <div className="flbl" style={{marginTop:16}}>🌍 Cuisine style <span>(up to 5)</span></div>
-        <div className="cuisine-selected">
-          {(prefs.cuisines||[]).map(c=>{
-            const ci = ALL_CUISINES.find(x=>x.n===c)
-            return <span key={c} className="sel-tag">
-              <span className="flag"><CuisineFlag name={c.name}/></span>{c}
-              <button className="rm" onClick={()=>toggleCuisine(c)}>×</button>
-            </span>
+        {/* CUISINES WITH PERCENTAGES */}
+        <div className="flbl" style={{marginTop:16}}>🌍 Cuisine style <span>(up to 5 — set % allocation)</span></div>
+
+        {/* Selected cuisines with percentage sliders */}
+        {(prefs.cuisinePercs||[]).length > 0 && (
+          <div style={{marginBottom:10}}>
+            {(prefs.cuisinePercs||[]).map((c)=>{
+              return (
+                <div key={c.name} style={{marginBottom:8,padding:'10px 12px',background:'var(--bg2)',borderRadius:'var(--r)',border:'1px solid var(--bdr)'}}>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+                    <div style={{display:'flex',alignItems:'center',gap:6}}>
+                      <CuisineFlag name={c.name} size={18}/>
+                      <span style={{fontSize:13,fontWeight:600,color:'var(--t)'}}>{c.name}</span>
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <span style={{fontSize:13,fontWeight:700,color:'var(--g)',minWidth:36,textAlign:'right'}}>{c.pct}%</span>
+                      <button onClick={()=>{
+                        const updated=(prefs.cuisinePercs||[]).filter(x=>x.name!==c.name)
+                        updatePrefs({cuisinePercs:updated,cuisines:updated.map(x=>x.name)})
+                      }} style={{background:'none',border:'none',cursor:'pointer',fontSize:14,color:'var(--t3)',padding:'0 2px',lineHeight:1}}>✕</button>
+                    </div>
+                  </div>
+                  <input type="range" min="5" max="100" step="5" value={c.pct}
+                    onChange={e=>{
+                      const val=parseInt(e.target.value)
+                      const updated=(prefs.cuisinePercs||[]).map(x=>x.name===c.name?{...x,pct:val}:x)
+                      updatePrefs({cuisinePercs:updated,cuisines:updated.map(x=>x.name)})
+                    }}
+                    style={{width:'100%',accentColor:'var(--g)',cursor:'pointer'}}/>
+                </div>
+              )
+            })}
+            {(()=>{
+              const total=(prefs.cuisinePercs||[]).reduce((s,x)=>s+x.pct,0)
+              const over=total>100
+              return (
+                <div style={{padding:'8px 12px',background:over?'#fff0f0':'var(--gl)',borderRadius:'var(--r)',border:`1px solid ${over?'#ffcccc':'rgba(31,78,26,.15)'}`,marginBottom:8}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                    <span style={{fontSize:11,fontWeight:600,color:over?'#c00':'var(--gm)'}}>
+                      {over?'⚠️ Over 100% — reduce some':'✓ Total allocation'}
+                    </span>
+                    <span style={{fontSize:13,fontWeight:700,color:over?'#c00':'var(--g)'}}>{total}%</span>
+                  </div>
+                  <div style={{height:6,background:'var(--bdr)',borderRadius:99,overflow:'hidden'}}>
+                    <div style={{height:'100%',width:`${Math.min(100,total)}%`,background:over?'#e55':'var(--g)',borderRadius:99,transition:'width .3s'}}></div>
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+        )}
+
+        {/* Featured quick-add */}
+        <div className="cuisine-featured">
+          {[{n:'Lebanese',f:'🇱🇧'},{n:'Italian',f:'🇮🇹'},{n:'Indian',f:'🇮🇳'},{n:'Japanese',f:'🇯🇵'},{n:'Mexican',f:'🇲🇽'}].map(c=>{
+            const already=(prefs.cuisinePercs||[]).find(x=>x.name===c.n)
+            return (
+              <button key={c.n} className={`cchip${already?' on':''}`} onClick={()=>{
+                if(already){
+                  const updated=(prefs.cuisinePercs||[]).filter(x=>x.name!==c.n)
+                  updatePrefs({cuisinePercs:updated,cuisines:updated.map(x=>x.name)})
+                } else if((prefs.cuisinePercs||[]).length<5){
+                  const updated=[...(prefs.cuisinePercs||[]),{name:c.n,pct:20}]
+                  updatePrefs({cuisinePercs:updated,cuisines:updated.map(x=>x.name)})
+                }
+              }}>
+                <CuisineFlag name={c.n} size={14}/><span className="cname">{c.n}</span>
+              </button>
+            )
           })}
         </div>
-        <div className="cuisine-featured">
-          {[{n:'Lebanese',f:'🇱🇧'},{n:'Italian',f:'🇮🇹'},{n:'Indian',f:'🇮🇳'},{n:'Japanese',f:'🇯🇵'},{n:'Mexican',f:'🇲🇽'}].map(c=>(
-            <button key={c.n} className={`cchip${(prefs.cuisines||[]).includes(c.n)?' on':''}`} onClick={()=>toggleCuisine(c.n)}>
-              <CuisineFlag name={c.n} size={14}/><span className="cname">{c.n}</span>
-            </button>
-          ))}
-        </div>
+
+        {/* Search more cuisines */}
         <div className="cuisine-search-wrap" style={{position:'relative'}}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:14,height:14,position:'absolute',left:11,top:'50%',transform:'translateY(-50%)',color:'var(--t3)',pointerEvents:'none'}}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input type="text" placeholder="Search all cuisines (100+)…" value={cuisineSearch} onChange={e=>setCuisineSearch(e.target.value)} style={{paddingLeft:34}}/>
         </div>
         {cuisineSearch && (
           <div className="cuisine-dropdown open">
-            {filtered.length === 0 && <div style={{padding:'10px 14px',fontSize:12,color:'var(--t3)'}}>No cuisines found</div>}
-            {filtered.map(c=>(
-              <div key={c.n} className={`cdrop-item${(prefs.cuisines||[]).includes(c.n)?' picked':''}`} onClick={()=>{toggleCuisine(c.n);setCuisineSearch('')}}>
-                <CuisineFlag name={c.n} size={14}/><div className="cinfo"><div>{c.n}</div></div>
-              </div>
-            ))}
+            {filtered.length===0&&<div style={{padding:'10px 14px',fontSize:12,color:'var(--t3)'}}>No cuisines found</div>}
+            {filtered.map(c=>{
+              const already=(prefs.cuisinePercs||[]).find(x=>x.name===c.n)
+              return (
+                <div key={c.n} className={`cdrop-item${already?' picked':''}`} onClick={()=>{
+                  if(already){
+                    const updated=(prefs.cuisinePercs||[]).filter(x=>x.name!==c.n)
+                    updatePrefs({cuisinePercs:updated,cuisines:updated.map(x=>x.name)})
+                  } else if((prefs.cuisinePercs||[]).length<5){
+                    const updated=[...(prefs.cuisinePercs||[]),{name:c.n,pct:20}]
+                    updatePrefs({cuisinePercs:updated,cuisines:updated.map(x=>x.name)})
+                  }
+                  setCuisineSearch('')
+                }}>
+                  <CuisineFlag name={c.n} size={16}/><div className="cinfo"><div>{c.n}</div></div>
+                </div>
+              )
+            })}
           </div>
         )}
 
-        {/* DIET */}
+                {/* DIET */}
         <div className="flbl">🍗 Dietary preference</div>
         <div className="chips">
           {['omnivore','vegetarian','vegan','pescatarian','high-protein','keto'].map(d=>(
