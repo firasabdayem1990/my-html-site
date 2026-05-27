@@ -288,7 +288,18 @@ export default function RecipesTab({ state }) {
         )}
 
         {/* PLAN DIVIDER */}
-        {planDays.length>0&&<div className="or-divider" style={{margin:'18px 0'}}>from your meal plan</div>}
+        {planDays.length>0&&(
+          <div style={{display:'flex',alignItems:'center',gap:10,margin:'18px 0'}}>
+            <div className="or-divider" style={{flex:1,margin:0}}>from your meal plan</div>
+            <button onClick={()=>{
+              try { localStorage.removeItem('sb_recipe_cache') } catch(e) {}
+              setRecipeCache({})
+              setOpenCards({})
+            }} style={{fontSize:11,padding:'4px 10px',background:'#fff3cd',border:'1px solid #e6c84a',borderRadius:99,color:'#856404',cursor:'pointer',fontFamily:'var(--sans)',fontWeight:600,whiteSpace:'nowrap',flexShrink:0}}>
+              🔄 Reload recipes
+            </button>
+          </div>
+        )}
 
         {/* EMPTY STATE */}
         {!planDays.length&&!searchResult&&(
