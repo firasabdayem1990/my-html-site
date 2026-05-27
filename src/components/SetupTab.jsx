@@ -269,36 +269,57 @@ export default function SetupTab({ state, onPlanGenerated }) {
         </div>
 
         {/* COMPACT CALORIE CALCULATOR */}
-        <div style={{marginTop:16,border:'1px solid var(--bdr2)',borderRadius:'var(--rl2)',overflow:'hidden'}}>
+        <div style={{marginTop:16,border:'2px solid #2d6a27',borderRadius:12,overflow:'hidden'}}>
+          {/* Header toggle */}
           <button
             onClick={()=>setCalOpen(p=>!p)}
-            style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'11px 14px',background:'var(--bg2)',border:'none',cursor:'pointer',fontFamily:'var(--sans)'}}
+            style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 14px',background:'#2d6a27',border:'none',cursor:'pointer',fontFamily:'var(--sans)'}}
           >
             <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <span style={{fontSize:14}}>🔥</span>
-              <span style={{fontSize:13,fontWeight:600,color:'var(--t)'}}>Daily calorie target</span>
-              {cal > 0 && <span style={{fontSize:11,padding:'2px 8px',background:'var(--g)',color:'#fff',borderRadius:99,fontWeight:600}}>{cal.toLocaleString()} kcal</span>}
+              <span style={{fontSize:15}}>🔥</span>
+              <span style={{fontSize:13,fontWeight:700,color:'#ffffff'}}>Daily calorie target</span>
+              {cal > 0 && <span style={{fontSize:11,padding:'3px 9px',background:'#ffffff',color:'#1a5c15',borderRadius:99,fontWeight:700}}>{cal.toLocaleString()} kcal</span>}
             </div>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:14,height:14,color:'var(--t3)',transform:calOpen?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s'}}><polyline points="6 9 12 15 18 9"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:14,height:14,transform:calOpen?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s'}}><polyline points="6 9 12 15 18 9"/></svg>
           </button>
 
           {calOpen && (
-            <div style={{padding:'14px',background:'var(--bg)',borderTop:'1px solid var(--bdr)'}}>
-              <div style={{fontSize:11,color:'var(--t3)',marginBottom:10}}>Fill in your details for precise calorie targets</div>
+            <div style={{padding:'14px',background:'#f7faf7',borderTop:'none'}}>
+              <div style={{fontSize:12,color:'#3a3a3a',marginBottom:12,fontWeight:500}}>Fill in your details for precise calorie targets</div>
 
               {/* Gender row */}
-              <div style={{display:'flex',gap:6,marginBottom:10}}>
-                <button className={`cal-gender-btn${prefs.calGender==='male'?' on':''}`} style={{flex:1,padding:'7px',fontSize:12}} onClick={()=>updatePrefs({calGender:'male'})}>♂ Male</button>
-                <button className={`cal-gender-btn${prefs.calGender==='female'?' on':''}`} style={{flex:1,padding:'7px',fontSize:12}} onClick={()=>updatePrefs({calGender:'female'})}>♀ Female</button>
+              <div style={{display:'flex',gap:6,marginBottom:12}}>
+                <button
+                  onClick={()=>updatePrefs({calGender:'male'})}
+                  style={{flex:1,padding:'8px',fontSize:13,fontWeight:600,borderRadius:8,border:'2px solid',borderColor:prefs.calGender==='male'?'#2d6a27':'#c0c0c0',background:prefs.calGender==='male'?'#2d6a27':'#ffffff',color:prefs.calGender==='male'?'#ffffff':'#555555',cursor:'pointer',fontFamily:'var(--sans)',transition:'all .15s'}}
+                >♂ Male</button>
+                <button
+                  onClick={()=>updatePrefs({calGender:'female'})}
+                  style={{flex:1,padding:'8px',fontSize:13,fontWeight:600,borderRadius:8,border:'2px solid',borderColor:prefs.calGender==='female'?'#2d6a27':'#c0c0c0',background:prefs.calGender==='female'?'#2d6a27':'#ffffff',color:prefs.calGender==='female'?'#ffffff':'#555555',cursor:'pointer',fontFamily:'var(--sans)',transition:'all .15s'}}
+                >♀ Female</button>
               </div>
 
-              {/* Fields 2x2 compact */}
+              {/* Fields 2x2 */}
               <div className="g2" style={{gap:8,marginBottom:8}}>
-                <div className="cal-field"><label style={{fontSize:11}}>Age</label><input type="number" value={prefs.calAge||''} onChange={e=>updatePrefs({calAge:e.target.value})} placeholder="30" style={{padding:'8px 10px',fontSize:13}}/></div>
-                <div className="cal-field"><label style={{fontSize:11}}>Weight (kg)</label><input type="number" value={prefs.calWeight||''} onChange={e=>updatePrefs({calWeight:e.target.value})} placeholder="70" style={{padding:'8px 10px',fontSize:13}}/></div>
-                <div className="cal-field"><label style={{fontSize:11}}>Height (cm)</label><input type="number" value={prefs.calHeight||''} onChange={e=>updatePrefs({calHeight:e.target.value})} placeholder="170" style={{padding:'8px 10px',fontSize:13}}/></div>
-                <div className="cal-field"><label style={{fontSize:11}}>Goal</label>
-                  <select value={prefs.calGoal||'maintain'} onChange={e=>updatePrefs({calGoal:e.target.value})} style={{padding:'8px 10px',fontSize:13,width:'100%',background:'var(--bg)',border:'1px solid var(--bdr2)',borderRadius:'var(--r)',fontFamily:'var(--sans)',color:'var(--t)',outline:'none'}}>
+                <div>
+                  <label style={{fontSize:11,fontWeight:700,color:'#333',display:'block',marginBottom:4}}>AGE</label>
+                  <input type="number" value={prefs.calAge||''} onChange={e=>updatePrefs({calAge:e.target.value})} placeholder="30"
+                    style={{width:'100%',padding:'9px 11px',fontSize:14,border:'1.5px solid #b0b0b0',borderRadius:8,background:'#fff',color:'#222',fontFamily:'var(--sans)',outline:'none',boxSizing:'border-box'}}/>
+                </div>
+                <div>
+                  <label style={{fontSize:11,fontWeight:700,color:'#333',display:'block',marginBottom:4}}>WEIGHT (KG)</label>
+                  <input type="number" value={prefs.calWeight||''} onChange={e=>updatePrefs({calWeight:e.target.value})} placeholder="70"
+                    style={{width:'100%',padding:'9px 11px',fontSize:14,border:'1.5px solid #b0b0b0',borderRadius:8,background:'#fff',color:'#222',fontFamily:'var(--sans)',outline:'none',boxSizing:'border-box'}}/>
+                </div>
+                <div>
+                  <label style={{fontSize:11,fontWeight:700,color:'#333',display:'block',marginBottom:4}}>HEIGHT (CM)</label>
+                  <input type="number" value={prefs.calHeight||''} onChange={e=>updatePrefs({calHeight:e.target.value})} placeholder="170"
+                    style={{width:'100%',padding:'9px 11px',fontSize:14,border:'1.5px solid #b0b0b0',borderRadius:8,background:'#fff',color:'#222',fontFamily:'var(--sans)',outline:'none',boxSizing:'border-box'}}/>
+                </div>
+                <div>
+                  <label style={{fontSize:11,fontWeight:700,color:'#333',display:'block',marginBottom:4}}>GOAL</label>
+                  <select value={prefs.calGoal||'maintain'} onChange={e=>updatePrefs({calGoal:e.target.value})}
+                    style={{width:'100%',padding:'9px 11px',fontSize:13,border:'1.5px solid #b0b0b0',borderRadius:8,background:'#fff',color:'#222',fontFamily:'var(--sans)',outline:'none',boxSizing:'border-box'}}>
                     <option value="lose">Lose weight</option>
                     <option value="maintain">Stay fit</option>
                     <option value="gain">Build muscle</option>
@@ -306,9 +327,10 @@ export default function SetupTab({ state, onPlanGenerated }) {
                 </div>
               </div>
 
-              <div className="cal-field" style={{marginBottom:10}}>
-                <label style={{fontSize:11}}>Activity level</label>
-                <select value={prefs.calActivity||'1.55'} onChange={e=>updatePrefs({calActivity:e.target.value})} style={{padding:'8px 10px',fontSize:13,width:'100%',background:'var(--bg)',border:'1px solid var(--bdr2)',borderRadius:'var(--r)',fontFamily:'var(--sans)',color:'var(--t)',outline:'none'}}>
+              <div style={{marginBottom:12}}>
+                <label style={{fontSize:11,fontWeight:700,color:'#333',display:'block',marginBottom:4}}>ACTIVITY LEVEL</label>
+                <select value={prefs.calActivity||'1.55'} onChange={e=>updatePrefs({calActivity:e.target.value})}
+                  style={{width:'100%',padding:'9px 11px',fontSize:13,border:'1.5px solid #b0b0b0',borderRadius:8,background:'#fff',color:'#222',fontFamily:'var(--sans)',outline:'none',boxSizing:'border-box'}}>
                   <option value="1.2">Sedentary (desk job)</option>
                   <option value="1.375">Light (1-3 days/week)</option>
                   <option value="1.55">Moderate (3-5 days/week)</option>
@@ -317,19 +339,30 @@ export default function SetupTab({ state, onPlanGenerated }) {
                 </select>
               </div>
 
-              <button className="cal-calc-btn" style={{padding:'9px',fontSize:13}} onClick={calcCalories}>Calculate my calories</button>
+              <button onClick={calcCalories}
+                style={{width:'100%',padding:'10px',fontSize:13,fontWeight:700,background:'#2d6a27',color:'#ffffff',border:'none',borderRadius:8,cursor:'pointer',fontFamily:'var(--sans)',letterSpacing:.3}}>
+                Calculate my calories
+              </button>
 
               {cal > 0 && (
-                <div style={{marginTop:10,padding:'10px 12px',background:'var(--gl)',border:'1px solid rgba(31,78,26,.15)',borderRadius:'var(--r)',display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}>
-                  <div style={{display:'flex',alignItems:'baseline',gap:4}}>
-                    <span style={{fontSize:20,fontWeight:700,color:'var(--g)',fontFamily:'var(--serif)'}}>{cal.toLocaleString()}</span>
-                    <span style={{fontSize:11,color:'var(--gm)'}}>kcal/day</span>
+                <div style={{marginTop:12,padding:'12px',background:'#2d6a27',borderRadius:10}}>
+                  <div style={{display:'flex',alignItems:'baseline',gap:6,marginBottom:10}}>
+                    <span style={{fontSize:26,fontWeight:800,color:'#ffffff',fontFamily:'var(--serif)'}}>{cal.toLocaleString()}</span>
+                    <span style={{fontSize:12,color:'rgba(255,255,255,0.8)',fontWeight:500}}>kcal / day</span>
                   </div>
-                  <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                    <span style={{fontSize:11,padding:'3px 8px',background:'#fff',borderRadius:99,color:'#1a5c15',fontWeight:600,border:'1px solid rgba(31,78,26,.2)'}}>🌅 {bfast} B</span>
-                    <span style={{fontSize:11,padding:'3px 8px',background:'#fff',borderRadius:99,color:'#1a5c15',fontWeight:600,border:'1px solid rgba(31,78,26,.2)'}}>☀️ {lunch} L</span>
-                    <span style={{fontSize:11,padding:'3px 8px',background:'#fff',borderRadius:99,color:'#1a5c15',fontWeight:600,border:'1px solid rgba(31,78,26,.2)'}}>🌙 {dinner} D</span>
-                    {snack > 0 && <span style={{fontSize:11,padding:'3px 8px',background:'#fff',borderRadius:99,color:'#1a5c15',fontWeight:600,border:'1px solid rgba(31,78,26,.2)'}}>🍎 {snack} S</span>}
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
+                    <div style={{background:'rgba(255,255,255,0.15)',borderRadius:8,padding:'8px 6px',textAlign:'center'}}>
+                      <div style={{fontSize:15,fontWeight:800,color:'#ffffff'}}>{bfast}</div>
+                      <div style={{fontSize:10,color:'rgba(255,255,255,0.8)',fontWeight:600,letterSpacing:.5}}>BREAKFAST</div>
+                    </div>
+                    <div style={{background:'rgba(255,255,255,0.15)',borderRadius:8,padding:'8px 6px',textAlign:'center'}}>
+                      <div style={{fontSize:15,fontWeight:800,color:'#ffffff'}}>{lunch}</div>
+                      <div style={{fontSize:10,color:'rgba(255,255,255,0.8)',fontWeight:600,letterSpacing:.5}}>LUNCH</div>
+                    </div>
+                    <div style={{background:'rgba(255,255,255,0.15)',borderRadius:8,padding:'8px 6px',textAlign:'center'}}>
+                      <div style={{fontSize:15,fontWeight:800,color:'#ffffff'}}>{dinner}</div>
+                      <div style={{fontSize:10,color:'rgba(255,255,255,0.8)',fontWeight:600,letterSpacing:.5}}>DINNER</div>
+                    </div>
                   </div>
                 </div>
               )}
