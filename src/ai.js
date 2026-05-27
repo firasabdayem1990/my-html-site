@@ -149,6 +149,7 @@ BUDGET RULES — NON-NEGOTIABLE:
 - Prioritize affordable staples: lentils, rice, eggs, seasonal vegetables, chicken thighs over breasts
 - Reuse ingredients across multiple meals to reduce waste and cost
 - VERIFY: sum all estimatedCost values before finalizing — if total exceeds ${currency}${budget}, reduce quantities or swap expensive ingredients
+- PANTRY ITEMS: for any shopping list item that matches a pantry item the user already owns, set "fromPantry": true and "estimatedCost": 0. These should still appear in the list but marked as already owned.
 
 ${restrictionLine}
 ${pregnantLine}
@@ -168,7 +169,7 @@ Rules:
 - Each shopping item must have a realistic price in ${currency} for ${country}
 
 Return ONLY this JSON structure with all 7 days filled:
-{"summary":{"totalEstimatedCost":0,"savingsPercent":0,"ingredientsReused":0,"wasteReductionTip":""},"cuisinesUsed":[],"weekPlan":[{"day":"Monday","cuisine":"","breakfast":{"name":"","desc":"","cuisine":"","calories":0},"lunch":{"name":"","desc":"","cuisine":"","calories":0},"dinner":{"name":"","desc":"","cuisine":"","calories":0}} /* repeat Tuesday-Sunday */],"shoppingList":[{"category":"Produce","items":[{"name":"","qty":"","estimatedCost":0,"multiUse":true}]},{"category":"Proteins","items":[]},{"category":"Dairy & Eggs","items":[]},{"category":"Grains & Legumes","items":[]},{"category":"Pantry Staples","items":[]},{"category":"Other","items":[]}]}`
+{"summary":{"totalEstimatedCost":0,"savingsPercent":0,"ingredientsReused":0,"wasteReductionTip":""},"cuisinesUsed":[],"weekPlan":[{"day":"Monday","cuisine":"","breakfast":{"name":"","desc":"","cuisine":"","calories":0},"lunch":{"name":"","desc":"","cuisine":"","calories":0},"dinner":{"name":"","desc":"","cuisine":"","calories":0}} /* repeat Tuesday-Sunday */],"shoppingList":[{"category":"Produce","items":[{"name":"","qty":"","estimatedCost":0,"multiUse":true,"fromPantry":false}]},{"category":"Proteins","items":[]},{"category":"Dairy & Eggs","items":[]},{"category":"Grains & Legumes","items":[]},{"category":"Pantry Staples","items":[]},{"category":"Other","items":[]}]}`
 
   const raw = await callAPI('generate', {
     model: 'claude-sonnet-4-5-20250929',
