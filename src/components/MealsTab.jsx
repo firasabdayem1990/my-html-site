@@ -1,3 +1,6 @@
+import { loadAllPlans } from '../supabase.js'
+import { useState, useEffect } from 'react'
+
 const CUISINE_FLAGS = {
   'Lebanese':'🇱🇧','Mediterranean':'🌊','Italian':'🇮🇹','French':'🇫🇷',
   'Mexican':'🇲🇽','Indian':'🇮🇳','Japanese':'🇯🇵','Chinese':'🇨🇳',
@@ -15,7 +18,16 @@ const PC = { breakfast:'pb', lunch:'pl', dinner:'pd' }
 const PL = { breakfast:'Breakfast', lunch:'Lunch', dinner:'Dinner' }
 
 export default function MealsTab({ state, onViewRecipe, onRegenerate }) {
-  const { plan, prefs, isDemo, clearPlan } = state
+  const { plan, prefs, isDemo, clearPlan, updatePlan } = state
+  const [savedPlans, setSavedPlans] = useState([])
+  const [showHistory, setShowHistory] = useState(false)
+
+  useEffect(() => {
+    if (!state.user) return
+    loadAllPlans(state.user.id).then(plans => {
+      setSavedPlans(plans)
+    }).catch(() => {})
+  }, [state.user])
   if (!plan) return (
     <section className="sec on">
       <div className="pad">
@@ -96,6 +108,53 @@ export default function MealsTab({ state, onViewRecipe, onRegenerate }) {
             Clear
           </button>
         </div>
+
+        {/* PLAN HISTORY */}
+        {savedPlans.length > 1 && (
+          <div style={{marginBottom:16}}>
+            <button onClick={()=>setShowHistory(p=>!p)}
+              style={{display:'flex',alignItems:'center',gap:6,background:'none',border:'1px solid var(--bdr2)',
+                borderRadius:'var(--r)',padding:'7px 12px',cursor:'pointer',fontFamily:'var(--sans)',
+                fontSize:12,color:'var(--t2)',width:'100%',justifyContent:'space-between'}}>
+              <span>📅 Saved plans ({savedPlans.length}/4)</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                style={{width:13,height:13,transform:showHistory?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s'}}>
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            {showHistory && (
+              <div style={{marginTop:8,display:'flex',flexDirection:'column',gap:6}}>
+                {savedPlans.map((p,i) => {
+                  const isActive = JSON.stringify(p.plan_data) === JSON.stringify(plan)
+                  const date = new Date(p.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+                  return (
+                    <div key={p.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+                      padding:'10px 12px',background:isActive?'var(--gl)':'var(--bg2)',
+                      borderRadius:'var(--r)',border:`1px solid ${isActive?'rgba(31,78,26,.2)':'var(--bdr)'}`}}>
+                      <div>
+                        <div style={{fontSize:12,fontWeight:600,color:'var(--t)'}}>
+                          {i===0?'Current plan':date}
+                          {isActive&&<span style={{fontSize:10,marginLeft:6,color:'var(--g)',fontWeight:700}}>● Active</span>}
+                        </div>
+                        <div style={{fontSize:11,color:'var(--t3)',marginTop:2}}>
+                          {p.plan_data?.cuisinesUsed?.slice(0,3).join(', ')||'Meal plan'}
+                          {' · '}{p.plan_data?._cur||'$'}{p.plan_data?.summary?.totalEstimatedCost?.toFixed(2)||'—'}
+                        </div>
+                      </div>
+                      {!isActive && (
+                        <button onClick={()=>{updatePlan(p.plan_data);setShowHistory(false)}}
+                          style={{padding:'5px 10px',background:'var(--g)',color:'#fff',border:'none',
+                            borderRadius:'var(--r)',cursor:'pointer',fontFamily:'var(--sans)',fontSize:11,fontWeight:600}}>
+                          Load
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* DAY GROUPS */}
         {(plan.weekPlan || []).map((day, i) => (
