@@ -217,7 +217,8 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
       pricePerServing: searchResult.pricePerServing || 0,
       ingredients: searchResult.ingredients.map(ing => ({
         name: ing.name,
-        qty: ing.qty || '',
+        qty: ing.shopQty || ing.qty || '',
+        cookQty: ing.cookQty || ing.qty || '',
         estimatedCost: 0
       }))
     }
@@ -480,28 +481,61 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
           </div>
         </div>
       )}
+      {/* SERVINGS BANNER */}
+      <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',
+        background:'var(--bg2)',borderRadius:'var(--r)',marginBottom:10,
+        border:'1px solid var(--bdr)'}}>
+        <span style={{fontSize:16}}>👥</span>
+        <div>
+          <div style={{fontSize:12,fontWeight:700,color:'var(--t)'}}>
+            Serves {parseInt(prefs.adults)||2} adult{(parseInt(prefs.adults)||2)!==1?'s':''}
+            {parseInt(prefs.kids)>0?` + ${parseInt(prefs.kids)} kid${parseInt(prefs.kids)!==1?'s':''} (½ portions)`:''}
+          </div>
+          <div style={{fontSize:11,color:'var(--t3)'}}>
+            Based on your household in Setup tab
+          </div>
+        </div>
+      </div>
+
       {/* BADGES */}
       <div style={{display:'flex',gap:8,marginBottom:10,flexWrap:'wrap'}}>
         {r.prepTime&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--bg2)',borderRadius:99,color:'var(--t2)'}}>⏱ Prep {r.prepTime}</span>}
         {r.cookTime&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--bg2)',borderRadius:99,color:'var(--t2)'}}>🔥 Cook {r.cookTime}</span>}
         {r.difficulty&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--bg2)',borderRadius:99,color:'var(--t2)'}}>📊 {r.difficulty}</span>}
-        <span style={{fontSize:11,padding:'4px 9px',background:'var(--bg2)',borderRadius:99,color:'var(--t2)'}}>
-          👥 {parseInt(prefs.adults)||2} adult{(parseInt(prefs.adults)||2)!==1?'s':''}
-          {parseInt(prefs.kids)>0?` + ${prefs.kids} kid${parseInt(prefs.kids)!==1?'s':''}`:''} 
-        </span>
         {planCostPerMeal>0&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--al)',borderRadius:99,color:'var(--am)'}}>💰 {cur}{planCostPerMeal.toFixed(2)} /meal</span>}
         {r.calories&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--gl)',borderRadius:99,color:'var(--gm)'}}>⚡ {r.calories} kcal/person</span>}
       </div>
       {/* INGREDIENTS */}
       {(r.ingredients||[]).length>0&&<>
         <div className="recipe-section-title">Ingredients</div>
+        <div style={{fontSize:11,color:'var(--t3)',marginBottom:8,display:'flex',gap:12}}>
+          <span>🍳 = cooking amount</span>
+          <span>🛒 = what to buy</span>
+        </div>
         <div className="recipe-ingredients">
-          {r.ingredients.map((ing,i)=>(
-            <div key={i} className="recipe-ing">
-              <span className="recipe-ing-qty">{ing.qty||''}</span>
-              <span className="recipe-ing-name">{ing.name}{ing.note&&<span style={{fontSize:11,color:'var(--t3)'}}> — {ing.note}</span>}</span>
-            </div>
-          ))}
+          {r.ingredients.map((ing,i)=>{
+            const hasBoth = ing.cookQty && ing.shopQty
+            return (
+              <div key={i} className="recipe-ing" style={{flexDirection:'column',alignItems:'flex-start',gap:2}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,width:'100%'}}>
+                  <span className="recipe-ing-name" style={{flex:1}}>
+                    {ing.name}
+                    {ing.note&&<span style={{fontSize:11,color:'var(--t3)'}}> — {ing.note}</span>}
+                  </span>
+                </div>
+                <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                  <span style={{fontSize:11,padding:'2px 8px',background:'var(--gl)',borderRadius:99,color:'var(--gm)',fontWeight:500}}>
+                    🍳 {ing.cookQty||ing.qty||ing.qty||'—'}
+                  </span>
+                  {(ing.shopQty) && (
+                    <span style={{fontSize:11,padding:'2px 8px',background:'var(--al)',borderRadius:99,color:'var(--am)',fontWeight:500}}>
+                      🛒 {ing.shopQty}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )
+          })}
         </div>
       </>}
       {/* STEPS */}
