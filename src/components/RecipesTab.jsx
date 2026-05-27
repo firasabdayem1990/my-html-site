@@ -485,8 +485,12 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
         {r.prepTime&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--bg2)',borderRadius:99,color:'var(--t2)'}}>⏱ Prep {r.prepTime}</span>}
         {r.cookTime&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--bg2)',borderRadius:99,color:'var(--t2)'}}>🔥 Cook {r.cookTime}</span>}
         {r.difficulty&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--bg2)',borderRadius:99,color:'var(--t2)'}}>📊 {r.difficulty}</span>}
+        <span style={{fontSize:11,padding:'4px 9px',background:'var(--bg2)',borderRadius:99,color:'var(--t2)'}}>
+          👥 {parseInt(prefs.adults)||2} adult{(parseInt(prefs.adults)||2)!==1?'s':''}
+          {parseInt(prefs.kids)>0?` + ${prefs.kids} kid${parseInt(prefs.kids)!==1?'s':''}`:''} 
+        </span>
         {planCostPerMeal>0&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--al)',borderRadius:99,color:'var(--am)'}}>💰 {cur}{planCostPerMeal.toFixed(2)} /meal</span>}
-        {r.calories&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--gl)',borderRadius:99,color:'var(--gm)'}}>⚡ {r.calories} kcal</span>}
+        {r.calories&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--gl)',borderRadius:99,color:'var(--gm)'}}>⚡ {r.calories} kcal/person</span>}
       </div>
       {/* INGREDIENTS */}
       {(r.ingredients||[]).length>0&&<>
@@ -564,6 +568,10 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                 <div style={{display:'flex',gap:8,marginTop:6,flexWrap:'wrap'}}>
                   {searchResult.prepTime&&<span style={{fontSize:11,color:'var(--t3)'}}>⏱ {searchResult.prepTime}</span>}
                   {searchResult.cookTime&&<span style={{fontSize:11,color:'var(--t3)'}}>🔥 {searchResult.cookTime}</span>}
+                  <span style={{fontSize:11,color:'var(--t3)'}}>
+                    👥 {parseInt(prefs.adults)||2} adult{(parseInt(prefs.adults)||2)!==1?'s':''}
+                    {parseInt(prefs.kids)>0?` + ${prefs.kids} kid${parseInt(prefs.kids)!==1?'s':''}`:''} 
+                  </span>
                 </div>
                 <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:6}}>
                   {searchResult.pricePerServing&&<span style={{fontSize:11,padding:'3px 9px',background:'var(--al)',borderRadius:99,color:'var(--am)'}}>💰 Est. {cur}{Number(searchResult.pricePerServing).toFixed(2)} in {prefs.country||'Lebanon'}</span>}
