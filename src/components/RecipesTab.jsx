@@ -69,7 +69,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
     setCommLoaded(true)
   }, [commLoaded, state.user])
 
-  useState(() => { loadComm() }, [])
+  useEffect(() => { loadComm() }, [])
 
   const [recipeCacheLoaded, setRecipeCacheLoaded] = useState(false)
   if (!recipeCacheLoaded) {
