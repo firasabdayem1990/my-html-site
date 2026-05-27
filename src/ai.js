@@ -126,7 +126,7 @@ Return ONLY this JSON structure with all 7 days filled:
 {"summary":{"totalEstimatedCost":0,"savingsPercent":0,"ingredientsReused":0,"wasteReductionTip":""},"cuisinesUsed":[],"weekPlan":[{"day":"Monday","cuisine":"","breakfast":{"name":"","desc":"","cuisine":"","calories":0},"lunch":{"name":"","desc":"","cuisine":"","calories":0},"dinner":{"name":"","desc":"","cuisine":"","calories":0}} /* repeat Tuesday-Sunday */],"shoppingList":[{"category":"Produce","items":[{"name":"","qty":"","estimatedCost":0,"multiUse":true}]},{"category":"Proteins","items":[]},{"category":"Dairy & Eggs","items":[]},{"category":"Grains & Legumes","items":[]},{"category":"Pantry Staples","items":[]},{"category":"Other","items":[]}]}`
 
   const raw = await callAPI('generate', {
-    model: 'claude-sonnet-4-5',
+    model: 'claude-sonnet-4-5-20250929',
     max_tokens: 16000,
     messages: [{ role: 'user', content: prompt }]
   })
@@ -150,7 +150,7 @@ export async function fetchRecipe({ name, cuisine, desc, people, adults, kids, d
     + ` history = 2-3 engaging sentences about the origin and cultural story of this dish. Make it fascinating and educational.`
 
   const raw = await callAPI('recipe', {
-    model: 'claude-sonnet-4-5',
+    model: 'claude-sonnet-4-5-20250929',
     max_tokens: 3000,
     messages: [{ role: 'user', content: prompt }]
   })
@@ -169,7 +169,7 @@ export async function searchRecipe({ query, people, adults, kids, diet, restrict
     + ` history = 2-3 engaging sentences about the origin and cultural story of this dish. Make it fascinating and educational.`
 
   const raw = await callAPI('recipe', {
-    model: 'claude-sonnet-4-5',
+    model: 'claude-sonnet-4-5-20250929',
     max_tokens: 3000,
     messages: [{ role: 'user', content: prompt }]
   })
