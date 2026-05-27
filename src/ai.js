@@ -36,7 +36,6 @@ const parseJSON = (raw) => {
   return JSON.parse(str)
 }
 
-// Country-specific average weekly grocery cost per adult (USD equivalent) for context
 const COUNTRY_PRICE_CONTEXT = {
   'Lebanon': 'Lebanon: groceries are expensive due to import dependency & inflation. Chicken ~$3/kg, vegetables ~$1-2/kg, lentils ~$1.5/kg, bread ~$0.5/loaf. Budget carefully.',
   'United States': 'USA: chicken breast ~$7/kg, vegetables ~$2-4/kg, pasta ~$2/500g, eggs ~$4/dozen, rice ~$3/kg.',
@@ -76,7 +75,7 @@ export async function generateMealPlan({ budget, adults, kids, people, currency,
     : 'No restrictions.'
 
   const calLine = calTarget > 0
-    ? `CALORIE TARGET per adult: ~${calTarget} kcal/day. Use Mifflin-St Jeor breakdown: Breakfast ~${Math.round(calTarget * 0.25)} kcal, Lunch ~${Math.round(calTarget * 0.35)} kcal, Dinner ~${Math.round(calTarget * 0.35)} kcal. Add "calories" field (integer kcal/serving for ONE adult) to each meal. Be precise — vary meals between ${Math.round(calTarget*0.85)} and ${Math.round(calTarget*1.05)} daily total.`
+    ? `CALORIE TARGET per adult: ~${calTarget} kcal/day. Breakdown: Breakfast ~${Math.round(calTarget * 0.25)} kcal, Lunch ~${Math.round(calTarget * 0.35)} kcal, Dinner ~${Math.round(calTarget * 0.35)} kcal. Add "calories" field (integer kcal/serving for ONE adult) to each meal. Be precise — vary meals between ${Math.round(calTarget*0.85)} and ${Math.round(calTarget*1.05)} daily total.`
     : 'No calorie target. Add a realistic "calories" field (integer kcal/serving for one adult) to each meal anyway.'
 
   const cuisineInstruction = cuisines.length
@@ -87,24 +86,20 @@ export async function generateMealPlan({ budget, adults, kids, people, currency,
     ? pantry.map(p => `${p.name} (expires: ${p.exp})`).join(', ')
     : 'none'
 
-  // Effective portions: adults + kids at 0.5 portions
   const effectivePortions = adults + (kids * 0.5)
   const kidsLine = kids > 0
     ? `Household: ${adults} adults + ${kids} children. Kids get HALF adult portions (smaller servings, milder seasoning, no spicy food for kids). Adjust all ingredient quantities accordingly. Effective portions = ${effectivePortions}.`
     : `Household: ${adults} adults. Total: ${people} people.`
 
   const priceContext = getPriceContext(country)
+  const totalMeals = 7 * 3
+  const maxCostPerMealPerPortion = (budget * 0.92) / (totalMeals * effectivePortions)
 
-  // Calculate a strict per-meal cost ceiling
-  const totalMeals = 7 * 3 // 21 meals
-  const maxCostPerMealPerPortion = (budget * 0.92) / (totalMeals * effectivePortions) // leave 8% safety margin
-  
   const prompt = `Generate a 7-day meal plan and shopping list as JSON only. No markdown, no backticks, no extra text.
 
 BUDGET RULES — NON-NEGOTIABLE:
 - Total budget: ${currency}${budget} for the entire week
 - HARD LIMIT: Total of ALL shoppingList estimatedCost values MUST be UNDER ${currency}${budget * 0.95} (leave 5% buffer)
-- Max cost per shopping category: do NOT exceed the budget. If needed, use cheaper ingredients.
 - Use REAL local supermarket prices for ${country}: ${priceContext}
 - Max cost per meal per effective portion: ~${currency}${maxCostPerMealPerPortion.toFixed(2)}
 - Prioritize affordable staples: lentils, rice, eggs, seasonal vegetables, chicken thighs over breasts
@@ -118,7 +113,7 @@ ${calLine}
 ${kidsLine}
 
 Country: ${country}. Diet: ${diet}. Health modes: ${health.join(', ') || 'none'}.
-Pantry items already owned (don't buy these): ${pantryStr}.
+Pantry items already owned (do not buy these): ${pantryStr}.
 ${cuisineInstruction}
 
 Rules:
@@ -146,12 +141,13 @@ export async function fetchRecipe({ name, cuisine, desc, people, adults, kids, d
   const priceContext = getPriceContext(country)
 
   const prompt = `Write a detailed authentic recipe for: "${name}"${cuisine ? ` (${cuisine})` : ''}${desc ? ` — ${desc}` : ''}.`
-    + ` Serves ${adults || people} adults${(kids||0)>0?` + ${kids} children`:''} (${effectivePortions} effective portions).`
+    + ` Serves ${adults || people} adults${(kids||0)>0 ? ` + ${kids} children` : ''} (${effectivePortions} effective portions).`
     + ` Diet: ${diet}. Restrictions: ${restrictions || 'none'}. Country: ${country}. Currency: ${currency}.${kidsNote}`
     + ` Prices: ${priceContext}`
-    + ` Return JSON only, no markdown: {"prepTime":"","cookTime":"","difficulty":"","calories":0,"pricePerServing":0,"ingredients":[{"qty":"","name":"","note":""}],"steps":[""],"tip":""}.`
-    + ` calories = precise integer kcal for ONE adult serving (use nutrition data).`
-    + ` pricePerServing = realistic cost in ${currency} for ALL ingredients to make this dish in ${country} (total ingredient cost, not per serving).`
+    + ` Return JSON only, no markdown: {"prepTime":"","cookTime":"","difficulty":"","calories":0,"pricePerServing":0,"ingredients":[{"qty":"","name":"","note":""}],"steps":[""],"tip":"","history":""}.`
+    + ` calories = precise integer kcal for ONE adult serving (use real nutrition data).`
+    + ` pricePerServing = realistic cost in ${currency} for ALL ingredients to make this dish in ${country} (total shopping cost).`
+    + ` history = 2-3 engaging sentences about the origin and cultural story of this dish. Make it fascinating and educational.`
 
   const raw = await callAPI('recipe', {
     model: 'claude-sonnet-4-5',
@@ -165,11 +161,12 @@ export async function searchRecipe({ query, people, adults, kids, diet, restrict
   const effectivePortions = (adults || people) + ((kids || 0) * 0.5)
   const priceContext = getPriceContext(country)
 
-  const prompt = `Recipe: "${query}". Serves ${adults || people} adults${(kids||0)>0?` + ${kids} children`:''} (${effectivePortions} effective portions). Diet: ${diet}. Restrictions: ${restrictions || 'none'}. Country: ${country}. Currency: ${currency}.`
+  const prompt = `Recipe: "${query}". Serves ${adults || people} adults${(kids||0)>0 ? ` + ${kids} children` : ''} (${effectivePortions} effective portions). Diet: ${diet}. Restrictions: ${restrictions || 'none'}. Country: ${country}. Currency: ${currency}.`
     + ` Prices: ${priceContext}`
-    + ` Return JSON only: {"dishName":"","cuisine":"","prepTime":"","cookTime":"","difficulty":"","servings":${people},"pricePerServing":0,"calories":0,"ingredients":[{"qty":"","name":"","note":""}],"steps":[""],"tip":"","funFact":""}.`
+    + ` Return JSON only: {"dishName":"","cuisine":"","prepTime":"","cookTime":"","difficulty":"","servings":${people},"pricePerServing":0,"calories":0,"ingredients":[{"qty":"","name":"","note":""}],"steps":[""],"tip":"","history":"","funFact":""}.`
     + ` calories = precise integer kcal/serving for ONE adult (use real nutrition data).`
     + ` pricePerServing = realistic TOTAL cost in ${currency} to buy ALL ingredients to make this dish from scratch in ${country}.`
+    + ` history = 2-3 engaging sentences about the origin and cultural story of this dish. Make it fascinating and educational.`
 
   const raw = await callAPI('recipe', {
     model: 'claude-sonnet-4-5',
