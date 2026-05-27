@@ -11,17 +11,36 @@ const callAPI = async (endpoint, body) => {
   const headers = { 'Content-Type': 'application/json' }
   if (token) headers['Authorization'] = `Bearer ${token}`
 
-  const res = await fetch(`/api/${endpoint}`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body)
-  })
+  let res
+  try {
+    res = await fetch(`/api/${endpoint}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body)
+    })
+  } catch (netErr) {
+    throw new Error('Network error — please check your internet connection and try again.')
+  }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err.error?.message || err.error || `HTTP ${res.status}`)
+    const msg = err.error?.message || err.error || ''
+    if (res.status === 429) {
+      throw new Error(msg || 'Monthly limit reached. Please try again next month or upgrade your plan.')
+    } else if (res.status === 401) {
+      throw new Error('Session expired — please sign out and sign in again.')
+    } else if (res.status === 500) {
+      throw new Error('Server error — please try again in a few seconds.')
+    } else if (res.status === 503) {
+      throw new Error('AI service is temporarily unavailable — please try again in a moment.')
+    }
+    throw new Error(msg || `Something went wrong (${res.status}). Please try again.`)
   }
+
   const data = await res.json()
+  if (!data.content || !data.content.length) {
+    throw new Error('AI returned an empty response — please try again.')
+  }
   return data.content.map(b => b.text || '').join('')
 }
 
@@ -33,7 +52,11 @@ const parseJSON = (raw) => {
     .trim()
   const fb = str.indexOf('{'), lb = str.lastIndexOf('}')
   if (fb !== -1 && lb !== -1) str = str.substring(fb, lb + 1)
-  return JSON.parse(str)
+  try {
+    return JSON.parse(str)
+  } catch(e) {
+    throw new Error('AI response was not in the expected format — please try generating again.')
+  }
 }
 
 const COUNTRY_PRICE_CONTEXT = {
