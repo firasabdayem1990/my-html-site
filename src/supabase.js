@@ -39,24 +39,57 @@ export async function getSession() {
 
 // ── PLANS ──
 export async function savePlan(userId, planData) {
+  // Generate week key based on current date (e.g. "2025-W01")
+  const now = new Date()
+  const weekNum = Math.ceil((now.getDate() + new Date(now.getFullYear(), now.getMonth(), 1).getDay()) / 7)
+  const weekKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-W${weekNum}`
+
+  // Save this plan
   const { error } = await supabase.from('plans').upsert({
     user_id: userId,
-    name: 'My Weekly Plan',
-    plan_data: planData
-  }, { onConflict: 'user_id' })
+    name: `Plan ${weekKey}`,
+    plan_data: planData,
+    week_key: weekKey,
+    created_week: weekKey
+  }, { onConflict: 'user_id,week_key' })
   if (error) throw error
+
+  // Keep only last 4 plans per user
+  const { data: allPlans } = await supabase
+    .from('plans')
+    .select('id, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+
+  if (allPlans && allPlans.length > 4) {
+    const toDelete = allPlans.slice(4).map(p => p.id)
+    await supabase.from('plans').delete().in('id', toDelete)
+  }
 }
 
 export async function loadPlan(userId) {
+  // Load most recent plan
   const { data, error } = await supabase
     .from('plans')
-    .select('plan_data')
+    .select('plan_data, week_key, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
   if (error) throw error
   return data?.plan_data || null
+}
+
+export async function loadAllPlans(userId) {
+  // Load all saved plans (max 4)
+  const { data, error } = await supabase
+    .from('plans')
+    .select('id, plan_data, week_key, created_at, name')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(4)
+  if (error) throw error
+  return data || []
 }
 
 // ── PANTRY ──
