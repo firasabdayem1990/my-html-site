@@ -16,10 +16,17 @@ const TABS = [
 
 export default function MainApp({ user, onSignOut }) {
   const [activeTab, setActiveTab] = useState('setup')
+  const [targetRecipe, setTargetRecipe] = useState(null) // { rid, meal }
   const state = useAppState(user)
 
   const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || null
   const userInitial = userName ? userName[0].toUpperCase() : null
+
+  // Called from MealsTab "View recipe" button
+  const handleViewRecipe = (rid, meal) => {
+    setTargetRecipe({ rid, meal })
+    setActiveTab('recipes')
+  }
 
   return (
     <div className="shell">
@@ -114,13 +121,17 @@ export default function MainApp({ user, onSignOut }) {
         <PantryTab state={state} />
       </div>
       <div style={{ display: activeTab === 'meals' ? 'block' : 'none' }}>
-        <MealsTab state={state} onViewRecipe={() => setActiveTab('recipes')} onRegenerate={() => setActiveTab('setup')} />
+        <MealsTab state={state} onViewRecipe={handleViewRecipe} onRegenerate={() => setActiveTab('setup')} />
       </div>
       <div style={{ display: activeTab === 'shopping' ? 'block' : 'none' }}>
         <ShoppingTab state={state} />
       </div>
       <div style={{ display: activeTab === 'recipes' ? 'block' : 'none' }}>
-        <RecipesTab state={state} />
+        <RecipesTab
+          state={state}
+          targetRecipe={targetRecipe}
+          onTargetHandled={() => setTargetRecipe(null)}
+        />
       </div>
     </div>
   )
