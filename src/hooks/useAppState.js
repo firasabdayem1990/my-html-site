@@ -34,6 +34,7 @@ export function useAppState(user) {
   const [checked, setChecked] = useState(new Set())
   const [prefs, setPrefs] = useState(defaultPrefs)
   const [isDemo, setIsDemo] = useState(false)
+  const [extraItems, setExtraItems] = useState([]) // recipe shopping extras
   const [dataLoaded, setDataLoaded] = useState(false)
 
   useEffect(() => {
@@ -48,6 +49,8 @@ export function useAppState(user) {
           ])
           if (cloudPantry) setPantry(cloudPantry)
           if (cloudPlan) setPlan(cloudPlan)
+          const ex = localStorage.getItem('sb_extra_items')
+          if (ex) setExtraItems(JSON.parse(ex))
           if (cloudPrefs) setPrefs(p => {
             const merged = { ...p, ...cloudPrefs }
             // Migrate old 'people' field to adults if needed
@@ -151,9 +154,14 @@ export function useAppState(user) {
     saveAll({ newPlan: null, newChecked: new Set(), demo: false })
   }, [saveAll])
 
+  const updateExtraItems = useCallback((items) => {
+    setExtraItems(items)
+    try { localStorage.setItem('sb_extra_items', JSON.stringify(items)) } catch(e) {}
+  }, [])
+
   return {
-    pantry, plan, checked, prefs, isDemo, dataLoaded,
+    pantry, plan, checked, prefs, isDemo, dataLoaded, extraItems,
     updatePantry, updatePlan, updateChecked, updatePrefs, clearPlan,
-    setPlan, setIsDemo
+    setPlan, setIsDemo, updateExtraItems
   }
 }
