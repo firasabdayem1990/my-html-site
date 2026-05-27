@@ -168,6 +168,36 @@ export async function toggleLike(userId, recipeId, isLiked) {
   }
 }
 
+// ── RECIPE CACHE ──
+export async function saveRecipeCacheCloud(userId, planKey, recipeId, recipeData) {
+  if (!supabase) return
+  const { error } = await supabase.from('recipe_cache').upsert({
+    user_id: userId,
+    plan_key: planKey,
+    recipe_id: recipeId,
+    recipe_data: recipeData
+  }, { onConflict: 'user_id,recipe_id' })
+  if (error) throw error
+}
+
+export async function loadRecipeCacheCloud(userId, planKey) {
+  if (!supabase) return {}
+  const { data, error } = await supabase
+    .from('recipe_cache')
+    .select('recipe_id, recipe_data')
+    .eq('user_id', userId)
+    .eq('plan_key', planKey)
+  if (error) throw error
+  const cache = {}
+  ;(data || []).forEach(r => { cache[r.recipe_id] = r.recipe_data })
+  return cache
+}
+
+export async function clearRecipeCacheCloud(userId) {
+  if (!supabase) return
+  await supabase.from('recipe_cache').delete().eq('user_id', userId)
+}
+
 // ── RATINGS ──
 export async function submitRating(userId, recipeId, rating) {
   const { error } = await supabase.from('recipe_ratings').upsert({
