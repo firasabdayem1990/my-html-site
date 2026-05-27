@@ -20,7 +20,7 @@ export default function RecipesTab({ state }) {
     } catch(e) { return null }
   })
   const [searchResultOpen, setSearchResultOpen] = useState(() => {
-    try { 
+    try {
       const saved = localStorage.getItem('sb_search_open')
       return saved === null ? true : saved === 'true'
     } catch(e) { return true }
@@ -52,14 +52,12 @@ export default function RecipesTab({ state }) {
 
   useState(() => { loadComm() }, [])
 
-  // Load recipe cache from localStorage on mount
   const [recipeCacheLoaded, setRecipeCacheLoaded] = useState(false)
   if (!recipeCacheLoaded) {
     try {
       const saved = localStorage.getItem('sb_recipe_cache')
       if (saved) {
         const parsed = JSON.parse(saved)
-        // Only restore if it matches current plan
         const planKey = plan?.weekPlan?.[0]?.day
         if (parsed._planKey === planKey) {
           Object.assign(recipeCache, parsed)
@@ -85,6 +83,8 @@ export default function RecipesTab({ state }) {
         const r = await fetchRecipe({
           name, cuisine, desc,
           people: parseInt(prefs.people)||2,
+          adults: parseInt(prefs.adults)||2,
+          kids: parseInt(prefs.kids)||0,
           diet: prefs.diet||'omnivore',
           restrictions: prefs.restrictions||'',
           country: prefs.country||'Lebanon',
@@ -106,15 +106,17 @@ export default function RecipesTab({ state }) {
       const r = await searchRecipe({
         query,
         people: parseInt(prefs.people)||2,
+        adults: parseInt(prefs.adults)||2,
+        kids: parseInt(prefs.kids)||0,
         diet: prefs.diet||'omnivore',
         restrictions: prefs.restrictions||'',
         country: prefs.country||'Lebanon',
         currency: prefs.currency||'$'
       })
       setSearchResult(r)
-    setSearchResultOpen(true)
-    try { localStorage.setItem('sb_search_open', 'true') } catch(e) {}
-    try { localStorage.setItem('sb_last_search', JSON.stringify(r)) } catch(e) {}
+      setSearchResultOpen(true)
+      try { localStorage.setItem('sb_search_open', 'true') } catch(e) {}
+      try { localStorage.setItem('sb_last_search', JSON.stringify(r)) } catch(e) {}
     } catch(e) { setSearchErr(e.message) }
     setSearching(false)
   }
@@ -161,15 +163,38 @@ export default function RecipesTab({ state }) {
     ? plan.summary.totalEstimatedCost / (7 * 3 * (parseInt(prefs.people)||2))
     : 0
 
+  // ── Recipe body — shared by plan recipes & search result ──
   const RecipeBody = ({r}) => r ? (
     <div className="recipe-body" style={{display:'block',padding:'0 16px 16px'}}>
-      <div style={{display:'flex',gap:8,margin:'14px 0 4px',flexWrap:'wrap'}}>
+
+      {/* HISTORY SECTION */}
+      {r.history && (
+        <div style={{
+          display:'flex',gap:10,margin:'14px 0 10px',
+          padding:'12px 14px',
+          background:'linear-gradient(135deg,#f5f0e8,#fdf8f0)',
+          borderRadius:10,
+          border:'1px solid #e8d9b8',
+          borderLeft:'3px solid #c4a35a'
+        }}>
+          <span style={{fontSize:18,flexShrink:0,marginTop:1}}>📜</span>
+          <div>
+            <div style={{fontSize:10,fontWeight:700,color:'#8a6c2a',letterSpacing:.8,marginBottom:4}}>HISTORY & ORIGIN</div>
+            <div style={{fontSize:12,color:'#4a3c28',lineHeight:1.65}}>{r.history}</div>
+          </div>
+        </div>
+      )}
+
+      {/* BADGES */}
+      <div style={{display:'flex',gap:8,marginBottom:4,flexWrap:'wrap'}}>
         {r.prepTime&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--bg2)',borderRadius:99,color:'var(--t2)'}}>⏱ Prep {r.prepTime}</span>}
         {r.cookTime&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--bg2)',borderRadius:99,color:'var(--t2)'}}>🔥 Cook {r.cookTime}</span>}
         {r.difficulty&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--bg2)',borderRadius:99,color:'var(--t2)'}}>📊 {r.difficulty}</span>}
         {planCostPerMeal>0&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--al)',borderRadius:99,color:'var(--am)'}}>💰 {cur}{planCostPerMeal.toFixed(2)} /meal</span>}
         {r.calories&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--gl)',borderRadius:99,color:'var(--gm)'}}>⚡ {r.calories} kcal</span>}
       </div>
+
+      {/* INGREDIENTS */}
       {(r.ingredients||[]).length>0&&<>
         <div className="recipe-section-title">Ingredients</div>
         <div className="recipe-ingredients">
@@ -181,6 +206,8 @@ export default function RecipesTab({ state }) {
           ))}
         </div>
       </>}
+
+      {/* STEPS */}
       {(r.steps||[]).length>0&&<>
         <div className="recipe-section-title">Method</div>
         <div className="recipe-steps">
@@ -192,7 +219,12 @@ export default function RecipesTab({ state }) {
           ))}
         </div>
       </>}
-      {r.tip&&<div className="recipe-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>{r.tip}</div>}
+
+      {/* TIP */}
+      {r.tip&&<div className="recipe-tip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        {r.tip}
+      </div>}
     </div>
   ) : null
 
@@ -210,6 +242,7 @@ export default function RecipesTab({ state }) {
   return (
     <section className="sec on">
       <div className="pad" id="recipes-pad">
+
         {/* SEARCH */}
         <div className="add-box" style={{marginBottom:20}}>
           <div className="add-box-title">Search any recipe in the world</div>
@@ -256,7 +289,7 @@ export default function RecipesTab({ state }) {
         {/* PLAN DIVIDER */}
         {planDays.length>0&&<div className="or-divider" style={{margin:'18px 0'}}>from your meal plan</div>}
 
-        {/* PLAN RECIPES */}
+        {/* EMPTY STATE */}
         {!planDays.length&&!searchResult&&(
           <div className="empty-v" style={{paddingTop:20}}>
             <div className="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div>
@@ -265,6 +298,7 @@ export default function RecipesTab({ state }) {
           </div>
         )}
 
+        {/* PLAN RECIPES */}
         {planDays.map(day=>(
           <div key={day.day}>
             <div className="recipe-day-sep">{day.day}</div>
