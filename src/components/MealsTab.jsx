@@ -199,7 +199,14 @@ export default function MealsTab({ state, onViewRecipe, onRegenerate }) {
                     <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
                       <span className={`mpill ${PC[slot]}`}>{PL[slot]}</span>
                       <div className="minfo">
-                        <div className="mname">{m.name || '—'}</div>
+                        <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                          <div className="mname">{m.name || '—'}</div>
+                          {(state.pantry||[]).length > 0 && m.name && (
+                            <span style={{fontSize:10,padding:'2px 6px',background:'#f0faf0',
+                              border:'1px solid rgba(31,78,26,.15)',borderRadius:99,
+                              color:'var(--gm)',fontWeight:500}}>🏠 uses pantry</span>
+                          )}
+                        </div>
                         {m.desc && <div className="mdesc">{m.desc}</div>}
                         <div className="meal-badges">
                           {m.calories && <span className="mcal">⚡ {m.calories} kcal</span>}

@@ -126,7 +126,7 @@ export default function ShoppingTab({ state }) {
             <div key={cat.category} className="scat">
               <div className="scat-hd">{cat.category}</div>
               <div className="sitems">
-                {cat.items.map((item, i) => {
+                {cat.items.filter(item => !item.fromPantry).map((item, i) => {
                   const k = ck + '_' + i
                   const isc = checked.has(k)
                   return (
@@ -143,6 +143,40 @@ export default function ShoppingTab({ state }) {
             </div>
           )
         })}
+
+        {/* PANTRY ITEMS SECTION */}
+        {(()=>{
+          const pantryItems = []
+          list.forEach(cat => {
+            (cat.items||[]).forEach((item,i) => {
+              if (item.fromPantry) pantryItems.push({...item, cat: cat.category, idx: i, key: cat.category.replace(/\W/g,'_')+'_'+i})
+            })
+          })
+          if (!pantryItems.length) return null
+          return (
+            <div style={{marginTop:16,marginBottom:8}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8,padding:'10px 12px',
+                background:'#f0faf0',borderRadius:'var(--r)',border:'1px solid rgba(31,78,26,.15)'}}>
+                <span style={{fontSize:16}}>🏠</span>
+                <div>
+                  <div style={{fontSize:12,fontWeight:700,color:'var(--g)'}}>Already in your pantry</div>
+                  <div style={{fontSize:11,color:'var(--gm)'}}>No need to buy these — use what you have</div>
+                </div>
+              </div>
+              {pantryItems.map((item,i) => (
+                <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',
+                  background:'#f8fef8',borderRadius:'var(--r)',border:'1px solid rgba(31,78,26,.1)',
+                  marginBottom:4}}>
+                  <span style={{fontSize:14}}>✅</span>
+                  <span style={{fontSize:13,color:'var(--t)',flex:1}}>{item.name}</span>
+                  <span style={{fontSize:11,color:'var(--t3)'}}>{item.qty||''}</span>
+                  <span style={{fontSize:11,padding:'2px 8px',background:'rgba(31,78,26,.1)',
+                    borderRadius:99,color:'var(--gm)',fontWeight:600}}>Have it</span>
+                </div>
+              ))}
+            </div>
+          )
+        })()}
 
         {/* RECIPE EXTRAS SECTION */}
         {(extraItems||[]).length > 0 && (
