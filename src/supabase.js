@@ -167,3 +167,56 @@ export async function toggleLike(userId, recipeId, isLiked) {
     await supabase.rpc('increment_likes', { recipe_id: recipeId }).catch(() => {})
   }
 }
+
+// ── RATINGS ──
+export async function submitRating(userId, recipeId, rating) {
+  const { error } = await supabase.from('recipe_ratings').upsert({
+    user_id: userId,
+    recipe_id: recipeId,
+    rating
+  }, { onConflict: 'user_id,recipe_id' })
+  if (error) throw error
+  await supabase.rpc('update_recipe_rating', { p_recipe_id: recipeId }).catch(() => {})
+}
+
+export async function loadUserRatings(userId) {
+  const { data, error } = await supabase
+    .from('recipe_ratings')
+    .select('recipe_id, rating')
+    .eq('user_id', userId)
+  if (error) throw error
+  const map = {}
+  ;(data || []).forEach(r => { map[r.recipe_id] = r.rating })
+  return map
+}
+
+// ── COMMENTS ──
+export async function loadComments(recipeId) {
+  const { data, error } = await supabase
+    .from('recipe_comments')
+    .select('*')
+    .eq('recipe_id', recipeId)
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return data || []
+}
+
+export async function submitComment(userId, recipeId, author, comment) {
+  const { error } = await supabase.from('recipe_comments').insert({
+    user_id: userId,
+    recipe_id: recipeId,
+    author,
+    comment
+  })
+  if (error) throw error
+  await supabase.rpc('update_comment_count', { p_recipe_id: recipeId }).catch(() => {})
+}
+
+export async function deleteComment(userId, commentId) {
+  const { error } = await supabase
+    .from('recipe_comments')
+    .delete()
+    .eq('id', commentId)
+    .eq('user_id', userId)
+  if (error) throw error
+}
