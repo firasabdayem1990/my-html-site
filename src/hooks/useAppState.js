@@ -30,6 +30,7 @@ const defaultPrefs = {
 }
 
 export function useAppState(user) {
+  // user is passed from App.jsx via MainApp
   const [pantry, setPantry] = useState([])
   const [plan, setPlan] = useState(null)
   const [checked, setChecked] = useState(new Set())
@@ -161,7 +162,7 @@ export function useAppState(user) {
   }, [])
 
   return {
-    pantry, plan, checked, prefs, isDemo, dataLoaded, extraItems,
+    pantry, plan, checked, prefs, isDemo, dataLoaded, extraItems, user,
     updatePantry, updatePlan, updateChecked, updatePrefs, clearPlan,
     setPlan, setIsDemo, updateExtraItems
   }
