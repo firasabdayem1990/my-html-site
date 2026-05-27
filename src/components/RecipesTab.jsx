@@ -17,6 +17,9 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
   const [searchResult, setSearchResult] = useState(() => {
     try { return JSON.parse(localStorage.getItem('sb_last_search')) } catch(e) { return null }
   })
+  const [searchHistory, setSearchHistory] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('sb_search_history')) || [] } catch(e) { return [] }
+  })
   const [searchResultOpen, setSearchResultOpen] = useState(() => {
     try { const s = localStorage.getItem('sb_search_open'); return s === null ? true : s === 'true' } catch(e) { return true }
   })
@@ -138,6 +141,13 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
       })
       setSearchResult(r)
       setSearchResultOpen(true)
+      // Save to history (max 10, no duplicates)
+      setSearchHistory(prev => {
+        const filtered = prev.filter(h => h.dishName !== r.dishName)
+        const updated = [r, ...filtered].slice(0, 10)
+        try { localStorage.setItem('sb_search_history', JSON.stringify(updated)) } catch(e) {}
+        return updated
+      })
       try { localStorage.setItem('sb_search_open', 'true') } catch(e) {}
       try { localStorage.setItem('sb_last_search', JSON.stringify(r)) } catch(e) {}
     } catch(e) { setSearchErr(e.message) }
@@ -513,6 +523,29 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
               <div className="recipe-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
             </div>
             {searchResultOpen && <RecipeBody r={searchResult}/>}
+          </div>
+        )}
+
+        {/* SEARCH HISTORY */}
+        {searchHistory.length > 1 && (
+          <div style={{marginBottom:16}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+              <div style={{fontSize:11,fontWeight:600,color:'var(--t3)',letterSpacing:.5}}>RECENT SEARCHES</div>
+              <button onClick={()=>{setSearchHistory([]);try{localStorage.removeItem('sb_search_history')}catch(e){}}}
+                style={{fontSize:11,color:'var(--t3)',background:'none',border:'none',cursor:'pointer',fontFamily:'var(--sans)'}}>
+                Clear all
+              </button>
+            </div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              {searchHistory.slice(1).map((h,i)=>(
+                <button key={i} onClick={()=>{setSearchResult(h);setSearchResultOpen(true)}}
+                  style={{fontSize:11,padding:'5px 10px',background:'var(--bg2)',border:'1px solid var(--bdr)',
+                    borderRadius:99,cursor:'pointer',fontFamily:'var(--sans)',color:'var(--t2)',
+                    display:'flex',alignItems:'center',gap:4}}>
+                  {flag(h.cuisine)} {h.dishName}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
