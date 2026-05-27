@@ -77,7 +77,8 @@ export default function RecipesTab({ state }) {
   const toggleCard = async (rid, name, cuisine, desc) => {
     const isOpen = openCards[rid]
     setOpenCards(p => ({...p, [rid]: !isOpen}))
-    if (!isOpen && !recipeCache[rid]) {
+    // Refetch if no cache OR if cached recipe is missing history field
+    if (!isOpen && (!recipeCache[rid] || recipeCache[rid].history === undefined)) {
       setLoadingCard(rid)
       try {
         const r = await fetchRecipe({
@@ -323,11 +324,11 @@ export default function RecipesTab({ state }) {
                     <div className="recipe-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
                   </div>
                   {isOpen&&(
-                    <div className="recipe-body" style={{display:'block',padding:'0 16px 16px',borderTop:'1px solid var(--bdr)'}}>
+                    <div style={{borderTop:'1px solid var(--bdr)'}}>
                       {loadingCard===rid ? (
                         <div className="recipe-body-loading"><div className="spin"></div>Loading recipe…</div>
                       ) : r ? <RecipeBody r={r}/> : (
-                        <div style={{padding:'16px 0',fontSize:13,color:'var(--t2)'}}>Tap to load recipe details.</div>
+                        <div style={{padding:'16px',fontSize:13,color:'var(--t2)'}}>Tap to load recipe details.</div>
                       )}
                     </div>
                   )}
