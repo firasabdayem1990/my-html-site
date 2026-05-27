@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { fetchRecipe, searchRecipe } from '../ai.js'
 import { loadCommunityRecipes, submitCommunityRecipe, deleteCommunityRecipe, toggleLike, loadUserLikes, submitRating, loadUserRatings, loadComments, submitComment, deleteComment } from '../supabase.js'
+import { supabase } from '../supabase.js'
 
 const CUISINE_FLAGS = {'Lebanese':'🇱🇧','Mediterranean':'🌊','Italian':'🇮🇹','French':'🇫🇷','Mexican':'🇲🇽','Indian':'🇮🇳','Japanese':'🇯🇵','Chinese':'🇨🇳','Thai':'🇹🇭','Greek':'🇬🇷','Turkish':'🇹🇷','Moroccan':'🇲🇦','Syrian':'🇸🇾','Korean':'🇰🇷','Spanish':'🇪🇸','Persian':'🇮🇷'}
 const flag = (c) => CUISINE_FLAGS[c] || '🍽️'
@@ -32,6 +33,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
   const [commentInputs, setCommentInputs] = useState({})
   const [commentOpen, setCommentOpen] = useState({})
   const [submittingComment, setSubmittingComment] = useState({})
+  const [editingComment, setEditingComment] = useState({}) // {commentId: text}
 
   // ── Auto-open target recipe from MealsTab ──
   useEffect(() => {
@@ -195,6 +197,23 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
     } catch(e) {}
   }
 
+  const handleEditComment = async (recipeId, commentId, newText) => {
+    if (!state.user || !newText.trim()) return
+    try {
+      await supabase.from('recipe_comments')
+        .update({ comment: newText.trim() })
+        .eq('id', commentId)
+        .eq('user_id', state.user.id)
+      setComments(p => ({
+        ...p,
+        [recipeId]: (p[recipeId]||[]).map(c =>
+          c.id === commentId ? {...c, comment: newText.trim()} : c
+        )
+      }))
+      setEditingComment(p => { const n = {...p}; delete n[commentId]; return n })
+    } catch(e) { alert('Could not edit comment') }
+  }
+
   const handleSubmitComm = async () => {
     if (!commForm.author || !commForm.dish || !commForm.steps) return
     setCommSubmitting(true)
@@ -286,13 +305,35 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                     <span style={{fontSize:11,fontWeight:600,color:'var(--t)'}}>{c.author}</span>
                     <span style={{fontSize:10,color:'var(--t3)'}}>{timeAgo(c.created_at)}</span>
                   </div>
-                  <div style={{fontSize:13,color:'var(--t2)',lineHeight:1.5}}>{c.comment}</div>
-                  {state.user && c.user_id === state.user.id && (
-                    <button onClick={()=>handleDeleteComment(recipeId, c.id)}
-                      style={{background:'none',border:'none',cursor:'pointer',fontSize:10,
-                        color:'var(--t3)',marginTop:4,fontFamily:'var(--sans)'}}>
-                      Delete
-                    </button>
+                  {editingComment[c.id] !== undefined ? (
+                    <div style={{marginTop:4}}>
+                      <textarea value={editingComment[c.id]}
+                        onChange={e=>setEditingComment(p=>({...p,[c.id]:e.target.value}))}
+                        rows="2"
+                        style={{width:'100%',padding:'6px 8px',fontSize:12,border:'1px solid var(--bdr2)',
+                          borderRadius:'var(--r)',background:'var(--bg)',color:'var(--t)',
+                          fontFamily:'var(--sans)',outline:'none',resize:'none',boxSizing:'border-box'}}/>
+                      <div style={{display:'flex',gap:6,marginTop:4}}>
+                        <button onClick={()=>handleEditComment(recipeId,c.id,editingComment[c.id])}
+                          style={{padding:'4px 10px',background:'var(--g)',color:'#fff',border:'none',
+                            borderRadius:'var(--r)',cursor:'pointer',fontFamily:'var(--sans)',fontSize:11,fontWeight:600}}>Save</button>
+                        <button onClick={()=>setEditingComment(p=>{const n={...p};delete n[c.id];return n})}
+                          style={{padding:'4px 10px',background:'none',border:'1px solid var(--bdr2)',
+                            borderRadius:'var(--r)',cursor:'pointer',fontFamily:'var(--sans)',fontSize:11,color:'var(--t2)'}}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{fontSize:13,color:'var(--t2)',lineHeight:1.5}}>{c.comment}</div>
+                  )}
+                  {state.user && c.user_id === state.user.id && editingComment[c.id] === undefined && (
+                    <div style={{display:'flex',gap:8,marginTop:4}}>
+                      <button onClick={()=>setEditingComment(p=>({...p,[c.id]:c.comment}))}
+                        style={{background:'none',border:'none',cursor:'pointer',fontSize:10,
+                          color:'var(--g)',fontFamily:'var(--sans)'}}>✏️ Edit</button>
+                      <button onClick={()=>handleDeleteComment(recipeId,c.id)}
+                        style={{background:'none',border:'none',cursor:'pointer',fontSize:10,
+                          color:'var(--t3)',fontFamily:'var(--sans)'}}>Delete</button>
+                    </div>
                   )}
                 </div>
               </div>
