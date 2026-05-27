@@ -1,11 +1,11 @@
 import { useState, useCallback, useEffect } from 'react'
 import { fetchRecipe, searchRecipe } from '../ai.js'
-import { loadCommunityRecipes, submitCommunityRecipe, deleteCommunityRecipe, toggleLike, loadUserLikes } from '../supabase.js'
+import { loadCommunityRecipes, submitCommunityRecipe, deleteCommunityRecipe, toggleLike, loadUserLikes, submitRating, loadUserRatings, loadComments, submitComment, deleteComment } from '../supabase.js'
 
 const CUISINE_FLAGS = {'Lebanese':'🇱🇧','Mediterranean':'🌊','Italian':'🇮🇹','French':'🇫🇷','Mexican':'🇲🇽','Indian':'🇮🇳','Japanese':'🇯🇵','Chinese':'🇨🇳','Thai':'🇹🇭','Greek':'🇬🇷','Turkish':'🇹🇷','Moroccan':'🇲🇦','Syrian':'🇸🇾','Korean':'🇰🇷','Spanish':'🇪🇸','Persian':'🇮🇷'}
 const flag = (c) => CUISINE_FLAGS[c] || '🍽️'
-
 const QUICK_RECIPES = ['Spaghetti Carbonara','Chicken Shawarma','Beef Tacos','Pad Thai','Knafeh','Sushi Rolls']
+const EMOJI_LIST = ['😋','🔥','❤️','👏','😍','🤤','👌','⭐','🥇','💯']
 
 export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
   const { plan, prefs } = state
@@ -27,18 +27,18 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
   const [commSubmitting, setCommSubmitting] = useState(false)
   const [commSuccess, setCommSuccess] = useState(false)
   const [likes, setLikes] = useState(new Set())
+  const [userRatings, setUserRatings] = useState({})
+  const [comments, setComments] = useState({})
+  const [commentInputs, setCommentInputs] = useState({})
+  const [commentOpen, setCommentOpen] = useState({})
+  const [submittingComment, setSubmittingComment] = useState({})
 
   // ── Auto-open target recipe from MealsTab ──
   useEffect(() => {
     if (!targetRecipe) return
     const { rid, meal } = targetRecipe
-    // Open the card
     setOpenCards(p => ({ ...p, [rid]: true }))
-    // Fetch recipe if not cached
-    if (!recipeCache[rid]) {
-      fetchAndCache(rid, meal.name, meal.cuisine, meal.desc)
-    }
-    // Scroll to it
+    if (!recipeCache[rid]) fetchAndCache(rid, meal.name, meal.cuisine, meal.desc)
     setTimeout(() => {
       const el = document.getElementById('rc_' + rid)
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -52,8 +52,12 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
       const data = await loadCommunityRecipes()
       setCommunity(data)
       if (state.user) {
-        const userLikes = await loadUserLikes(state.user.id)
+        const [userLikes, ratings] = await Promise.all([
+          loadUserLikes(state.user.id),
+          loadUserRatings(state.user.id)
+        ])
         setLikes(userLikes)
+        setUserRatings(ratings)
       }
     } catch (e) {
       const raw = localStorage.getItem('sb_community_recipes')
@@ -137,6 +141,60 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
     setSearching(false)
   }
 
+  const handleRating = async (recipeId, rating) => {
+    if (!state.user) return alert('Sign in to rate recipes')
+    try {
+      await submitRating(state.user.id, recipeId, rating)
+      setUserRatings(p => ({...p, [recipeId]: rating}))
+      setCommunity(p => p.map(r => {
+        if (r.id !== recipeId) return r
+        const oldRating = userRatings[recipeId] || 0
+        const oldCount = r.rating_count || 0
+        const oldTotal = (r.avg_rating || 0) * oldCount
+        const newCount = oldRating ? oldCount : oldCount + 1
+        const newTotal = oldRating ? oldTotal - oldRating + rating : oldTotal + rating
+        return {...r, avg_rating: Math.round((newTotal/newCount)*10)/10, rating_count: newCount}
+      }))
+    } catch(e) {}
+  }
+
+  const loadRecipeComments = async (recipeId) => {
+    try {
+      const data = await loadComments(recipeId)
+      setComments(p => ({...p, [recipeId]: data}))
+    } catch(e) {}
+  }
+
+  const handleCommentOpen = (recipeId) => {
+    const isOpen = commentOpen[recipeId]
+    setCommentOpen(p => ({...p, [recipeId]: !isOpen}))
+    if (!isOpen && !comments[recipeId]) loadRecipeComments(recipeId)
+  }
+
+  const handleSubmitComment = async (recipeId) => {
+    if (!state.user) return alert('Sign in to comment')
+    const text = commentInputs[recipeId]?.trim()
+    if (!text) return
+    setSubmittingComment(p => ({...p, [recipeId]: true}))
+    try {
+      const author = state.user?.user_metadata?.name || state.user?.email?.split('@')[0] || 'User'
+      await submitComment(state.user.id, recipeId, author, text)
+      setCommentInputs(p => ({...p, [recipeId]: ''}))
+      await loadRecipeComments(recipeId)
+      setCommunity(p => p.map(r => r.id===recipeId ? {...r, comment_count:(r.comment_count||0)+1} : r))
+    } catch(e) { alert('Could not post comment') }
+    setSubmittingComment(p => ({...p, [recipeId]: false}))
+  }
+
+  const handleDeleteComment = async (recipeId, commentId) => {
+    if (!state.user) return
+    try {
+      await deleteComment(state.user.id, commentId)
+      setComments(p => ({...p, [recipeId]: (p[recipeId]||[]).filter(c => c.id !== commentId)}))
+      setCommunity(p => p.map(r => r.id===recipeId ? {...r, comment_count:Math.max(0,(r.comment_count||1)-1)} : r))
+    } catch(e) {}
+  }
+
   const handleSubmitComm = async () => {
     if (!commForm.author || !commForm.dish || !commForm.steps) return
     setCommSubmitting(true)
@@ -179,18 +237,113 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
     ? plan.summary.totalEstimatedCost / (7 * 3 * (parseInt(prefs.people)||2))
     : 0
 
+  // ── Star Rating Component ──
+  const StarRating = ({recipeId, avg, count, userRating}) => (
+    <div style={{display:'flex',alignItems:'center',gap:6,margin:'6px 0'}}>
+      <div style={{display:'flex',gap:2}}>
+        {[1,2,3,4,5].map(star => (
+          <button key={star} onClick={()=>handleRating(recipeId, star)}
+            style={{background:'none',border:'none',cursor:'pointer',padding:'2px',fontSize:18,
+              color: star <= (userRating || Math.round(avg||0)) ? '#f5a623' : '#ddd',
+              transition:'color .1s',lineHeight:1}}>
+            ★
+          </button>
+        ))}
+      </div>
+      {avg > 0 && <span style={{fontSize:11,color:'var(--t3)',fontWeight:500}}>{avg} ({count})</span>}
+      {!avg && <span style={{fontSize:11,color:'var(--t3)'}}>No ratings yet</span>}
+    </div>
+  )
+
+  // ── Comments Section ──
+  const CommentsSection = ({recipeId}) => {
+    const recipeComments = comments[recipeId] || []
+    const isOpen = commentOpen[recipeId]
+    const recipe = community.find(r => r.id === recipeId)
+    return (
+      <div style={{marginTop:10,borderTop:'1px solid var(--bdr)',paddingTop:10}}>
+        <button onClick={()=>handleCommentOpen(recipeId)}
+          style={{background:'none',border:'none',cursor:'pointer',fontFamily:'var(--sans)',
+            fontSize:12,color:'var(--t2)',display:'flex',alignItems:'center',gap:5,padding:'4px 0'}}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13}}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          {isOpen ? 'Hide' : 'Show'} comments {recipe?.comment_count > 0 && `(${recipe.comment_count})`}
+        </button>
+
+        {isOpen && (
+          <div style={{marginTop:10}}>
+            {/* Comment list */}
+            {recipeComments.length === 0 && (
+              <div style={{fontSize:12,color:'var(--t3)',padding:'8px 0'}}>No comments yet. Be the first!</div>
+            )}
+            {recipeComments.map(c => (
+              <div key={c.id} style={{display:'flex',gap:8,marginBottom:10,alignItems:'flex-start'}}>
+                <div style={{width:28,height:28,borderRadius:'50%',background:'var(--g)',color:'#fff',
+                  fontSize:11,fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                  {(c.author||'?')[0].toUpperCase()}
+                </div>
+                <div style={{flex:1,background:'var(--bg2)',borderRadius:10,padding:'8px 11px'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
+                    <span style={{fontSize:11,fontWeight:600,color:'var(--t)'}}>{c.author}</span>
+                    <span style={{fontSize:10,color:'var(--t3)'}}>{timeAgo(c.created_at)}</span>
+                  </div>
+                  <div style={{fontSize:13,color:'var(--t2)',lineHeight:1.5}}>{c.comment}</div>
+                  {state.user && c.user_id === state.user.id && (
+                    <button onClick={()=>handleDeleteComment(recipeId, c.id)}
+                      style={{background:'none',border:'none',cursor:'pointer',fontSize:10,
+                        color:'var(--t3)',marginTop:4,fontFamily:'var(--sans)'}}>
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* Emoji picker */}
+            {state.user && (
+              <div>
+                <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>
+                  {EMOJI_LIST.map(emoji => (
+                    <button key={emoji} onClick={()=>setCommentInputs(p=>({...p,[recipeId]:(p[recipeId]||'')+emoji}))}
+                      style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:8,
+                        padding:'4px 7px',fontSize:16,cursor:'pointer',lineHeight:1}}>
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+                <div style={{display:'flex',gap:8}}>
+                  <input type="text" placeholder="Add a comment…"
+                    value={commentInputs[recipeId]||''}
+                    onChange={e=>setCommentInputs(p=>({...p,[recipeId]:e.target.value}))}
+                    onKeyDown={e=>e.key==='Enter'&&handleSubmitComment(recipeId)}
+                    style={{flex:1,padding:'9px 12px',fontSize:13,border:'1px solid var(--bdr2)',
+                      borderRadius:'var(--r)',background:'var(--bg)',color:'var(--t)',
+                      fontFamily:'var(--sans)',outline:'none'}}/>
+                  <button onClick={()=>handleSubmitComment(recipeId)}
+                    disabled={submittingComment[recipeId]}
+                    style={{padding:'9px 14px',background:'var(--g)',color:'#fff',border:'none',
+                      borderRadius:'var(--r)',cursor:'pointer',fontFamily:'var(--sans)',
+                      fontSize:12,fontWeight:500,flexShrink:0}}>
+                    {submittingComment[recipeId] ? '…' : 'Post'}
+                  </button>
+                </div>
+              </div>
+            )}
+            {!state.user && (
+              <div style={{fontSize:12,color:'var(--t3)',padding:'6px 0'}}>Sign in to comment</div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const RecipeBody = ({r}) => r ? (
     <div style={{padding:'0 16px 16px'}}>
       {/* HISTORY */}
       {r.history && (
-        <div style={{
-          display:'flex',gap:10,margin:'14px 0 12px',
-          padding:'12px 14px',
-          background:'linear-gradient(135deg,#f5f0e8,#fdf8f0)',
-          borderRadius:10,
-          border:'1px solid #e8d9b8',
-          borderLeft:'3px solid #c4a35a'
-        }}>
+        <div style={{display:'flex',gap:10,margin:'14px 0 12px',padding:'12px 14px',
+          background:'linear-gradient(135deg,#f5f0e8,#fdf8f0)',borderRadius:10,
+          border:'1px solid #e8d9b8',borderLeft:'3px solid #c4a35a'}}>
           <span style={{fontSize:18,flexShrink:0,marginTop:1}}>📜</span>
           <div>
             <div style={{fontSize:10,fontWeight:700,color:'#8a6c2a',letterSpacing:.8,marginBottom:4}}>HISTORY & ORIGIN</div>
@@ -230,7 +383,6 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
           ))}
         </div>
       </>}
-      {/* TIP */}
       {r.tip&&<div className="recipe-tip">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         {r.tip}
@@ -295,7 +447,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
           </div>
         )}
 
-        {/* PLAN DIVIDER + RELOAD BUTTON */}
+        {/* PLAN DIVIDER */}
         {planDays.length>0&&(
           <div style={{display:'flex',alignItems:'center',gap:10,margin:'18px 0'}}>
             <div className="or-divider" style={{flex:1,margin:0}}>from your meal plan</div>
@@ -364,8 +516,10 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
               👨‍🍳 Community recipes
               {community.length>0&&<span style={{background:'var(--g)',color:'#fff',fontSize:10,fontWeight:600,padding:'2px 7px',borderRadius:99,marginLeft:8}}>{community.length}</span>}
             </div>
-            <div style={{fontSize:11,color:'var(--t3)',marginTop:2}}>Real recipes shared by real people — add yours below</div>
+            <div style={{fontSize:11,color:'var(--t3)',marginTop:2}}>Real recipes shared by real people — rate, comment & add yours</div>
           </div>
+
+          {/* SUBMIT FORM */}
           {!commSuccess?(
             <div className="comm-add-box">
               <div className="comm-add-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Share your recipe</div>
@@ -390,6 +544,8 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
               <button onClick={()=>setCommSuccess(false)} style={{marginTop:8,background:'none',border:'1px solid var(--bdr2)',borderRadius:'var(--r)',padding:'6px 14px',fontFamily:'var(--sans)',fontSize:12,color:'var(--t2)',cursor:'pointer'}}>+ Add another</button>
             </div>
           )}
+
+          {/* COMMUNITY FEED */}
           <div>
             {community.length===0&&commLoaded&&(
               <div className="comm-empty">
@@ -400,6 +556,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
             {community.map(r=>{
               const isOpen = openCards['comm_'+r.id]
               const isLiked = likes.has(r.id)
+              const userRating = userRatings[r.id] || 0
               return (
                 <div key={r.id} className={`comm-card${isOpen?' open':''}`}>
                   <div className="comm-card-hdr" onClick={()=>setOpenCards(p=>({...p,['comm_'+r.id]:!isOpen}))}>
@@ -412,11 +569,21 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                         {(r.cook_time||r.cookTime)&&<span>⏱ {r.cook_time||r.cookTime}</span>}
                         <span style={{color:'var(--t3)'}}>{timeAgo(r.created_at)}</span>
                       </div>
+                      {/* STAR RATING */}
+                      <StarRating recipeId={r.id} avg={r.avg_rating} count={r.rating_count} userRating={userRating}/>
                     </div>
-                    <button className={`comm-like-btn${isLiked?' liked':''}`} onClick={e=>{e.stopPropagation();handleLike(r.id)}}>
-                      <svg viewBox="0 0 24 24" fill={isLiked?'var(--rd)':'none'} stroke={isLiked?'var(--rd)':'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-                      {r.likes||0}
-                    </button>
+                    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6,flexShrink:0}}>
+                      <button className={`comm-like-btn${isLiked?' liked':''}`} onClick={e=>{e.stopPropagation();handleLike(r.id)}}>
+                        <svg viewBox="0 0 24 24" fill={isLiked?'var(--rd)':'none'} stroke={isLiked?'var(--rd)':'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                        {r.likes||0}
+                      </button>
+                      {r.comment_count > 0 && (
+                        <span style={{fontSize:10,color:'var(--t3)',display:'flex',alignItems:'center',gap:2}}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:11,height:11}}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                          {r.comment_count}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   {isOpen&&(
                     <div className="comm-body">
@@ -442,6 +609,8 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>Delete my recipe
                         </button>
                       )}
+                      {/* COMMENTS */}
+                      <CommentsSection recipeId={r.id}/>
                     </div>
                   )}
                 </div>
