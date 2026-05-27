@@ -326,10 +326,10 @@ export default function SetupTab({ state, onPlanGenerated }) {
                     <span style={{fontSize:11,color:'var(--gm)'}}>kcal/day</span>
                   </div>
                   <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                    <span style={{fontSize:11,padding:'3px 8px',background:'rgba(31,78,26,.12)',borderRadius:99,color:'var(--gm)'}}>🌅 {bfast} B</span>
-                    <span style={{fontSize:11,padding:'3px 8px',background:'rgba(31,78,26,.12)',borderRadius:99,color:'var(--gm)'}}>☀️ {lunch} L</span>
-                    <span style={{fontSize:11,padding:'3px 8px',background:'rgba(31,78,26,.12)',borderRadius:99,color:'var(--gm)'}}>🌙 {dinner} D</span>
-                    {snack > 0 && <span style={{fontSize:11,padding:'3px 8px',background:'rgba(31,78,26,.12)',borderRadius:99,color:'var(--gm)'}}>🍎 {snack} S</span>}
+                    <span style={{fontSize:11,padding:'3px 8px',background:'#fff',borderRadius:99,color:'#1a5c15',fontWeight:600,border:'1px solid rgba(31,78,26,.2)'}}>🌅 {bfast} B</span>
+                    <span style={{fontSize:11,padding:'3px 8px',background:'#fff',borderRadius:99,color:'#1a5c15',fontWeight:600,border:'1px solid rgba(31,78,26,.2)'}}>☀️ {lunch} L</span>
+                    <span style={{fontSize:11,padding:'3px 8px',background:'#fff',borderRadius:99,color:'#1a5c15',fontWeight:600,border:'1px solid rgba(31,78,26,.2)'}}>🌙 {dinner} D</span>
+                    {snack > 0 && <span style={{fontSize:11,padding:'3px 8px',background:'#fff',borderRadius:99,color:'#1a5c15',fontWeight:600,border:'1px solid rgba(31,78,26,.2)'}}>🍎 {snack} S</span>}
                   </div>
                 </div>
               )}
