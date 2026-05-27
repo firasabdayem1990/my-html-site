@@ -147,7 +147,7 @@ export async function fetchRecipe({ name, cuisine, desc, people, adults, kids, d
     + ` Return JSON only, no markdown: {"prepTime":"","cookTime":"","difficulty":"","calories":0,"pricePerServing":0,"ingredients":[{"qty":"","name":"","note":""}],"steps":[""],"tip":"","history":""}.`
     + ` calories = precise integer kcal for ONE adult serving (use real nutrition data).`
     + ` pricePerServing = realistic cost in ${currency} for ALL ingredients to make this dish in ${country} (total shopping cost).`
-    + ` history = 2-3 engaging sentences about the origin and cultural story of this dish. Make it fascinating and educational.`
+    + ` history = 2 concise sentences about the origin and cultural story of this dish. Be brief and interesting.`
 
   const raw = await callAPI('recipe', {
     model: 'claude-sonnet-4-5-20250929',
@@ -166,7 +166,7 @@ export async function searchRecipe({ query, people, adults, kids, diet, restrict
     + ` Return JSON only: {"dishName":"","cuisine":"","prepTime":"","cookTime":"","difficulty":"","servings":${people},"pricePerServing":0,"calories":0,"ingredients":[{"qty":"","name":"","note":""}],"steps":[""],"tip":"","history":"","funFact":""}.`
     + ` calories = precise integer kcal/serving for ONE adult (use real nutrition data).`
     + ` pricePerServing = realistic TOTAL cost in ${currency} to buy ALL ingredients to make this dish from scratch in ${country}.`
-    + ` history = 2-3 engaging sentences about the origin and cultural story of this dish. Make it fascinating and educational.`
+    + ` history = 2 concise sentences about the origin and cultural story of this dish. Be brief and interesting.`
 
   const raw = await callAPI('recipe', {
     model: 'claude-sonnet-4-5-20250929',
