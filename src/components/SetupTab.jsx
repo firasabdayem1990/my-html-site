@@ -402,9 +402,9 @@ export default function SetupTab({ state, onPlanGenerated }) {
         {/* DIET */}
         <div className="flbl">🍗 Dietary preference</div>
         <div className="chips">
-          {['omnivore','vegetarian','vegan','pescatarian','high-protein'].map(d=>(
+          {['omnivore','vegetarian','vegan','pescatarian','high-protein','keto'].map(d=>(
             <button key={d} className={`chip${prefs.diet===d?' on':''}`} onClick={()=>updatePrefs({diet:d})}>
-              {d==='omnivore'?'🍗':d==='vegetarian'?'🥬':d==='vegan'?'🌱':d==='pescatarian'?'🐟':'💪'} {d.charAt(0).toUpperCase()+d.slice(1)}
+              {d==='omnivore'?'🍗':d==='vegetarian'?'🥬':d==='vegan'?'🌱':d==='pescatarian'?'🐟':d==='keto'?'🥑':'💪'} {d.charAt(0).toUpperCase()+d.slice(1)}
             </button>
           ))}
         </div>
