@@ -1,6 +1,5 @@
 import { useState } from 'react'
 
-// Map AI categories to real store sections
 const STORE_SECTIONS = {
   'Produce': { icon: '🥦', order: 1, label: 'Fruits & Vegetables' },
   'Proteins': { icon: '🥩', order: 2, label: 'Meat, Fish & Eggs' },
@@ -27,12 +26,11 @@ export default function ShoppingTab({ state }) {
   let planTotal = 0
   list.forEach(cat => (cat.items || []).forEach(i => { planTotal += (i.estimatedCost || 0) }))
 
-  // Extra items total — use pricePerServing as total ingredient cost
   const extraTotal = (extraItems || []).reduce((sum, dish) =>
     sum + (parseFloat(dish.pricePerServing) || 0), 0)
 
   const total = planTotal + extraTotal
-  const hasExtras = (extraItems||[]).length > 0
+  const hasExtras = (extraItems || []).length > 0
   const pct = Math.min(100, Math.round((total / budget) * 100))
   const rem = budget - total
 
@@ -51,18 +49,18 @@ export default function ShoppingTab({ state }) {
   const copyList = () => {
     const lines = []
     list.forEach(cat => {
-      lines.push(`\n${cat.category.toUpperCase()}`)
+      lines.push('\n' + cat.category.toUpperCase())
       ;(cat.items || []).forEach((item, i) => {
-        const k = cat.category.replace(/\W/g,'_') + '_' + i
-        lines.push(`${checked.has(k) ? '[x]' : '[ ]'} ${item.name} — ${item.qty} (${cur}${(item.estimatedCost||0).toFixed(2)})`)
+        const k = cat.category.replace(/\W/g, '_') + '_' + i
+        lines.push((checked.has(k) ? '[x]' : '[ ]') + ' ' + item.name + ' — ' + (item.qty||'') + ' (' + cur + (item.estimatedCost||0).toFixed(2) + ')')
       })
     })
     if ((extraItems||[]).length) {
       lines.push('\n── RECIPE EXTRAS ──')
       extraItems.forEach(dish => {
-        lines.push(`\n${dish.dishName.toUpperCase()}`)
+        lines.push('\n' + dish.dishName.toUpperCase())
         dish.ingredients.forEach(ing => {
-          lines.push(`[ ] ${ing.name}${ing.qty ? ' — ' + ing.qty : ''}`)
+          lines.push('[ ] ' + ing.name + (ing.qty ? ' — ' + ing.qty : ''))
         })
       })
     }
@@ -74,13 +72,37 @@ export default function ShoppingTab({ state }) {
     <section className="sec on">
       <div className="pad">
         <div className="empty-v">
-          <div className="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></div>
+          <div className="empty-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+            </svg>
+          </div>
           <div className="empty-t">List is empty</div>
           <div className="empty-s">Generate a meal plan or search a recipe and add its ingredients.</div>
         </div>
       </div>
     </section>
   )
+
+  const renderItems = (cat) => {
+    const ck = cat.category.replace(/\W/g, '_')
+    const items = (cat.items || []).filter(item => !item.fromPantry)
+    if (!items.length) return null
+    return items.map((item, i) => {
+      const k = ck + '_' + i
+      const isc = checked.has(k)
+      return (
+        <div key={k} className={'srow' + (isc ? ' chk' : '')} onClick={() => toggleItem(k)}>
+          <div className={'chkbox' + (isc ? ' on' : '')}></div>
+          <span className="sname">{item.name}</span>
+          {item.multiUse && <div className="mdot"></div>}
+          <span className="sqty">{item.qty || ''}</span>
+          <span className="scost">{cur}{(item.estimatedCost || 0).toFixed(2)}</span>
+        </div>
+      )
+    })
+  }
 
   return (
     <section className="sec on">
@@ -102,10 +124,12 @@ export default function ShoppingTab({ state }) {
               </div>
               <div className="bc-right">
                 <div className="bc-rem">{cur}{Math.abs(rem).toFixed(2)}</div>
-                <div className="bc-remlbl">{rem>=0?'remaining':'over budget'}</div>
+                <div className="bc-remlbl">{rem >= 0 ? 'remaining' : 'over budget'}</div>
               </div>
             </div>
-            <div className="btrack"><div className="bprog" style={{width:`${pct}%`,background:rem<0?'#e55':'var(--g)'}}></div></div>
+            <div className="btrack">
+              <div className="bprog" style={{width: pct + '%', background: rem < 0 ? '#e55' : 'var(--g)'}}></div>
+            </div>
             <div className="bmeta"><span>{cur}0</span><span>{cur}{budget.toFixed(0)} budget</span></div>
             {hasExtras && extraTotal > 0 && (
               <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid var(--bdr)',display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--t3)'}}>
@@ -126,12 +150,12 @@ export default function ShoppingTab({ state }) {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13}}><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
             Copy list
           </button>
-          <button className="sec-btn" onClick={()=>window.print()}>
+          <button className="sec-btn" onClick={() => window.print()}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
             Print
           </button>
-          <button className="sec-btn" onClick={()=>setStoreView(p=>!p)}
-            style={{background:storeView?'var(--g)':'',color:storeView?'#fff':'',border:storeView?'1px solid var(--g)':''}}>
+          <button className="sec-btn" onClick={() => setStoreView(p => !p)}
+            style={{background: storeView ? 'var(--g)' : '', color: storeView ? '#fff' : '', border: storeView ? '1px solid var(--g)' : ''}}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13}}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             {storeView ? 'Store view ✓' : 'Store view'}
           </button>
@@ -139,69 +163,43 @@ export default function ShoppingTab({ state }) {
 
         {plan && <div className="legend"><div className="mdot"></div>Green dot = used in multiple meals</div>}
 
-        {/* PLAN SHOPPING LIST */}
+        {/* SHOPPING LIST */}
         {storeView ? (
-          // STORE VIEW — sorted by store section order
-          [...list].sort((a,b) => (getSection(a.category).order||9) - (getSection(b.category).order||9)).map(cat => {
-            if (!(cat.items||[]).filter(i=>!i.fromPantry).length) return null
-            const sec = getSection(cat.category)
-            const ck = cat.category.replace(/\W/g,'_')
+          [...list]
+            .sort((a, b) => (getSection(a.category).order || 9) - (getSection(b.category).order || 9))
+            .map(cat => {
+              const sec = getSection(cat.category)
+              const items = renderItems(cat)
+              if (!items) return null
+              return (
+                <div key={cat.category} className="scat">
+                  <div className="scat-hd" style={{display:'flex',alignItems:'center',gap:6}}>
+                    <span style={{fontSize:16}}>{sec.icon}</span>
+                    <span>{sec.label}</span>
+                  </div>
+                  <div className="sitems">{items}</div>
+                </div>
+              )
+            })
+        ) : (
+          list.map(cat => {
+            const items = renderItems(cat)
+            if (!items) return null
             return (
               <div key={cat.category} className="scat">
-                <div className="scat-hd" style={{display:'flex',alignItems:'center',gap:6}}>
-                  <span style={{fontSize:16}}>{sec.icon}</span>
-                  <span>{sec.label}</span>
-                </div>
-                <div className="sitems">
-                  {cat.items.filter(i=>!i.fromPantry).map((item,i) => {
-                    const k = ck+'_'+i
-                    const isc = checked.has(k)
-                    return (
-                      <div key={k} className={`srow${isc?' chk':''}`} onClick={()=>toggleItem(k)}>
-                        <div className={`chkbox${isc?' on':''}`}></div>
-                        <span className="sname">{item.name}</span>
-                        {item.multiUse && <div className="mdot"></div>}
-                        <span className="sqty">{item.qty||''}</span>
-                        <span className="scost">{cur}{(item.estimatedCost||0).toFixed(2)}</span>
-                      </div>
-                    )
-                  })}
-                </div>
+                <div className="scat-hd">{cat.category}</div>
+                <div className="sitems">{items}</div>
               </div>
             )
           })
-        ) : (
-        list.map(cat => {
-          if (!(cat.items || []).length) return null
-          const ck = cat.category.replace(/\W/g,'_')
-          return (
-            <div key={cat.category} className="scat">
-              <div className="scat-hd">{cat.category}</div>
-              <div className="sitems">
-                {cat.items.filter(item => !item.fromPantry).map((item, i) => {
-                  const k = ck + '_' + i
-                  const isc = checked.has(k)
-                  return (
-                    <div key={k} className={`srow${isc?' chk':''}`} onClick={()=>toggleItem(k)}>
-                      <div className={`chkbox${isc?' on':''}`}></div>
-                      <span className="sname">{item.name}</span>
-                      {item.multiUse && <div className="mdot"></div>}
-                      <span className="sqty">{item.qty||''}</span>
-                      <span className="scost">{cur}{(item.estimatedCost||0).toFixed(2)}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        })}
         )}
+
         {/* PANTRY ITEMS SECTION */}
-        {(()=>{
+        {(() => {
           const pantryItems = []
           list.forEach(cat => {
-            (cat.items||[]).forEach((item,i) => {
-              if (item.fromPantry) pantryItems.push({...item, cat: cat.category, idx: i, key: cat.category.replace(/\W/g,'_')+'_'+i})
+            ;(cat.items || []).forEach((item, i) => {
+              if (item.fromPantry) pantryItems.push({...item, idx: i})
             })
           })
           if (!pantryItems.length) return null
@@ -215,13 +213,12 @@ export default function ShoppingTab({ state }) {
                   <div style={{fontSize:11,color:'var(--gm)'}}>No need to buy these — use what you have</div>
                 </div>
               </div>
-              {pantryItems.map((item,i) => (
+              {pantryItems.map((item, i) => (
                 <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',
-                  background:'#f8fef8',borderRadius:'var(--r)',border:'1px solid rgba(31,78,26,.1)',
-                  marginBottom:4}}>
+                  background:'#f8fef8',borderRadius:'var(--r)',border:'1px solid rgba(31,78,26,.1)',marginBottom:4}}>
                   <span style={{fontSize:14}}>✅</span>
                   <span style={{fontSize:13,color:'var(--t)',flex:1}}>{item.name}</span>
-                  <span style={{fontSize:11,color:'var(--t3)'}}>{item.qty||''}</span>
+                  <span style={{fontSize:11,color:'var(--t3)'}}>{item.qty || ''}</span>
                   <span style={{fontSize:11,padding:'2px 8px',background:'rgba(31,78,26,.1)',
                     borderRadius:99,color:'var(--gm)',fontWeight:600}}>Have it</span>
                 </div>
@@ -231,12 +228,11 @@ export default function ShoppingTab({ state }) {
         })()}
 
         {/* RECIPE EXTRAS SECTION */}
-        {(extraItems||[]).length > 0 && (
+        {(extraItems || []).length > 0 && (
           <div style={{marginTop:20}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-              <button onClick={()=>setExtraOpen(p=>!p)}
-                style={{display:'flex',alignItems:'center',gap:8,background:'none',border:'none',
-                  cursor:'pointer',fontFamily:'var(--sans)',padding:0}}>
+              <button onClick={() => setExtraOpen(p => !p)}
+                style={{display:'flex',alignItems:'center',gap:8,background:'none',border:'none',cursor:'pointer',fontFamily:'var(--sans)',padding:0}}>
                 <div style={{width:28,height:28,background:'#fff3cd',border:'1px solid #e6c84a',
                   borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14}}>🛒</div>
                 <div>
@@ -244,21 +240,21 @@ export default function ShoppingTab({ state }) {
                   <div style={{fontSize:11,color:'var(--t3)'}}>Ingredients from searched recipes</div>
                 </div>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                  style={{width:13,height:13,color:'var(--t3)',marginLeft:4,transform:extraOpen?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s'}}>
+                  style={{width:13,height:13,color:'var(--t3)',marginLeft:4,transform: extraOpen ? 'rotate(180deg)' : 'rotate(0deg)',transition:'transform .2s'}}>
                   <polyline points="6 9 12 15 18 9"/>
                 </svg>
               </button>
-              <button onClick={()=>updateExtraItems([])}
+              <button onClick={() => updateExtraItems([])}
                 style={{fontSize:11,color:'var(--t3)',background:'none',border:'1px solid var(--bdr)',
                   borderRadius:99,padding:'3px 9px',cursor:'pointer',fontFamily:'var(--sans)'}}>
                 Clear all
               </button>
             </div>
 
-            {extraOpen && (extraItems||[]).map((dish, di) => (
+            {extraOpen && (extraItems || []).map((dish, di) => (
               <div key={di} className="scat" style={{borderLeft:'3px solid #e6c84a'}}>
                 <div className="scat-hd" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                  <span>🍽️ {dish.dishName} {dish.cuisine && `(${dish.cuisine})`}</span>
+                  <span>🍽️ {dish.dishName} {dish.cuisine && '(' + dish.cuisine + ')'}</span>
                   <div style={{display:'flex',alignItems:'center',gap:8}}>
                     {dish.pricePerServing > 0 && (
                       <span style={{fontSize:11,color:'var(--am)',background:'var(--al)',
@@ -266,20 +262,20 @@ export default function ShoppingTab({ state }) {
                         Est. {cur}{Number(dish.pricePerServing).toFixed(2)} total
                       </span>
                     )}
-                    <button onClick={()=>removeExtraDish(dish.dishName)}
+                    <button onClick={() => removeExtraDish(dish.dishName)}
                       style={{background:'none',border:'none',cursor:'pointer',fontSize:13,
                         color:'var(--t3)',padding:'2px 4px',lineHeight:1}}>✕</button>
                   </div>
                 </div>
                 <div className="sitems">
-                  {(dish.ingredients||[]).map((ing, i) => {
-                    const k = `extra_${di}_${i}`
+                  {(dish.ingredients || []).map((ing, i) => {
+                    const k = 'extra_' + di + '_' + i
                     const isc = checked.has(k)
                     return (
-                      <div key={k} className={`srow${isc?' chk':''}`} onClick={()=>toggleItem(k)}>
-                        <div className={`chkbox${isc?' on':''}`}></div>
+                      <div key={k} className={'srow' + (isc ? ' chk' : '')} onClick={() => toggleItem(k)}>
+                        <div className={'chkbox' + (isc ? ' on' : '')}></div>
                         <span className="sname">{ing.name}</span>
-                        <span className="sqty">{ing.qty||''}</span>
+                        <span className="sqty">{ing.qty || ''}</span>
                         <span className="scost" style={{color:'var(--t3)',fontSize:11}}>—</span>
                       </div>
                     )
