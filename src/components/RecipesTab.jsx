@@ -64,7 +64,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
   const [commSubmitting, setCommSubmitting] = useState(false)
   const [commSuccess, setCommSuccess] = useState(false)
   const [likes, setLikes] = useState(new Set())
-  const [commFilter, setCommFilter] = useState({cuisine:'', diet:'', sort:'likes'})
+  const [commFilter, setCommFilter] = useState({cuisine:'', diet:'', sort:'rating'})
   const [commSearch, setCommSearch] = useState('')
   const [userRatings, setUserRatings] = useState({})
   const [comments, setComments] = useState({})
@@ -858,14 +858,10 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                       border:'1px solid var(--bdr2)',borderRadius:'var(--r)',background:'var(--bg)',
                       color:'var(--t)',fontFamily:'var(--sans)',outline:'none',boxSizing:'border-box'}}/>
                 </div>
-                <select value={commFilter.sort} onChange={e=>setCommFilter(p=>({...p,sort:e.target.value}))}
-                  style={{padding:'8px 10px',fontSize:12,border:'1px solid var(--bdr2)',borderRadius:'var(--r)',
-                    background:'var(--bg)',color:'var(--t)',fontFamily:'var(--sans)',outline:'none'}}>
-                  <option value="likes">Most liked</option>
-                  <option value="rating">Top rated</option>
-                  <option value="newest">Newest first</option>
-                  <option value="comments">Most commented</option>
-                </select>
+                <div style={{fontSize:11,color:'var(--t3)',padding:'6px 10px',
+                background:'var(--bg2)',borderRadius:'var(--r)',border:'1px solid var(--bdr)'}}>
+                ⭐ Sorted by quality score
+              </div>
               </div>
               <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
                 {['All','Lebanese','Italian','Indian','Japanese','Mexican','Mediterranean','Other'].map(c=>(
@@ -898,10 +894,10 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                 return true
               })
               .sort((a,b) => {
-                if (commFilter.sort === 'rating') return (b.avg_rating||0) - (a.avg_rating||0)
-                if (commFilter.sort === 'newest') return new Date(b.created_at) - new Date(a.created_at)
-                if (commFilter.sort === 'comments') return (b.comment_count||0) - (a.comment_count||0)
-                return (b.likes||0) - (a.likes||0)
+                // Smart quality score: rating counts most, then likes, then comments
+                const scoreA = (a.avg_rating||0)*2 + (a.likes||0)*0.5 + (a.comment_count||0)*0.3
+                const scoreB = (b.avg_rating||0)*2 + (b.likes||0)*0.5 + (b.comment_count||0)*0.3
+                return scoreB - scoreA
               })
               .map(r=>{
               const isOpen = openCards['comm_'+r.id]
