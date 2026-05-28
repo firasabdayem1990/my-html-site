@@ -150,6 +150,7 @@ BUDGET RULES — NON-NEGOTIABLE:
 - Reuse ingredients across multiple meals to reduce waste and cost
 - VERIFY: sum all estimatedCost values before finalizing — if total exceeds ${currency}${budget}, reduce quantities or swap expensive ingredients
 - PANTRY ITEMS: for any shopping list item that matches a pantry item the user already owns, set "fromPantry": true and "estimatedCost": 0. These should still appear in the list but marked as already owned.
+- QUANTITIES: be very precise and realistic about quantities needed for the WHOLE WEEK for ${effectivePortions} portions. Examples: "Rice: 2kg bag" not "some rice", "Olive oil: 500ml bottle" not "olive oil", "Eggs: 12-pack" not "eggs". Always specify the exact amount needed for the week so users know if they have enough at home.
 
 ${restrictionLine}
 ${pregnantLine}
