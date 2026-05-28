@@ -20,11 +20,32 @@ export default function ShoppingTab({ state }) {
   const [storeView, setStoreView] = useState(false)
 
   const cur = plan?._cur || prefs.currency || '$'
+  
+  // Smart pantry cross-reference — match shopping items against pantry in real-time
+  const pantryNames = (state.pantry || []).map(p => p.name.toLowerCase().trim())
+  
+  const getPantryMatch = (itemName) => {
+    if (!itemName || !pantryNames.length) return null
+    const name = itemName.toLowerCase().trim()
+    const pantryItem = (state.pantry || []).find(p => {
+      const pn = p.name.toLowerCase().trim()
+      return name.includes(pn) || pn.includes(name) ||
+        name.replace(/s$/, '') === pn.replace(/s$/, '') ||
+        pn.replace(/s$/, '') === name.replace(/s$/, '')
+    })
+    return pantryItem || null
+  }
+  
+  const isPantryMatch = (itemName) => !!getPantryMatch(itemName)
   const budget = parseFloat(prefs.budget) || 80
   const list = plan?.shoppingList || []
 
   let planTotal = 0
-  list.forEach(cat => (cat.items || []).forEach(i => { planTotal += (i.estimatedCost || 0) }))
+  list.forEach(cat => (cat.items || []).forEach(i => { 
+    if (!i.fromPantry && !isPantryMatch(i.name)) {
+      planTotal += (i.estimatedCost || 0) 
+    }
+  }))
 
   const extraTotal = (extraItems || []).reduce((sum, dish) =>
     sum + (parseFloat(dish.pricePerServing) || 0), 0)
@@ -95,13 +116,34 @@ export default function ShoppingTab({ state }) {
     return items.map((item, i) => {
       const k = ck + '_' + i
       const isc = checked.has(k)
+      const inPantry = isPantryMatch(item.name)
       return (
-        <div key={k} className={'srow' + (isc ? ' chk' : '')} onClick={() => toggleItem(k)}>
-          <div className={'chkbox' + (isc ? ' on' : '')}></div>
-          <span className="sname">{item.name}</span>
+        <div key={k} className={'srow' + (isc ? ' chk' : '')} 
+          onClick={() => !inPantry && toggleItem(k)}
+          style={{opacity: inPantry ? 0.7 : 1, background: inPantry ? '#f0faf0' : ''}}>
+          {inPantry ? (
+            <span style={{fontSize:14,flexShrink:0}}>✅</span>
+          ) : (
+            <div className={'chkbox' + (isc ? ' on' : '')}></div>
+          )}
+          <span className="sname" style={{textDecoration: inPantry ? 'line-through' : 'none'}}>
+            {item.name}
+          </span>
           {item.multiUse && <div className="mdot"></div>}
-          <span className="sqty">{item.qty || ''}</span>
-          <span className="scost">{cur}{(item.estimatedCost || 0).toFixed(2)}</span>
+          {inPantry ? (
+            <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:2,flexShrink:0}}>
+              <span style={{fontSize:10,padding:'2px 7px',background:'var(--gl)',
+                borderRadius:99,color:'var(--gm)',fontWeight:600}}>✅ In pantry</span>
+              {item.qty && (
+                <span style={{fontSize:9,color:'var(--t3)'}}>Need: {item.qty}</span>
+              )}
+            </div>
+          ) : (
+            <>
+              <span className="sqty">{item.qty || ''}</span>
+              <span className="scost">{cur}{(item.estimatedCost || 0).toFixed(2)}</span>
+            </>
+          )}
         </div>
       )
     })
@@ -165,6 +207,42 @@ export default function ShoppingTab({ state }) {
         </div>
 
         {plan && <div className="legend"><div className="mdot"></div>Green dot = used in multiple meals</div>}
+
+        {/* PANTRY QUANTITY CHECK */}
+        {(state.pantry||[]).length > 0 && list.length > 0 && (()=>{
+          const warnings = []
+          list.forEach(cat => {
+            ;(cat.items||[]).forEach(item => {
+              const match = getPantryMatch(item.name)
+              if (match && item.qty) {
+                warnings.push({
+                  name: item.name,
+                  needed: item.qty,
+                  pantryItem: match.name
+                })
+              }
+            })
+          })
+          if (!warnings.length) return null
+          return (
+            <div style={{marginBottom:14,padding:'10px 14px',background:'#fffbf0',
+              border:'1px solid #ffe066',borderRadius:'var(--r)',borderLeft:'3px solid #f0a000'}}>
+              <div style={{fontSize:12,fontWeight:700,color:'#8a6000',marginBottom:6}}>
+                🏠 Check your pantry quantities
+              </div>
+              {warnings.map((w,i) => (
+                <div key={i} style={{fontSize:11,color:'#8a6000',marginBottom:3,
+                  display:'flex',alignItems:'center',gap:6}}>
+                  <span>•</span>
+                  <span><strong>{w.name}</strong> — you need <strong>{w.needed}</strong> this week. Check if you have enough!</span>
+                </div>
+              ))}
+              <div style={{fontSize:10,color:'#8a6000',marginTop:6,opacity:.8}}>
+                💡 If you don't have enough, uncheck "In pantry" items to add them to your buy list
+              </div>
+            </div>
+          )
+        })()}
 
         {/* SHOPPING LIST */}
         {storeView ? (
