@@ -12,7 +12,11 @@ export default function PantryTab({ state }) {
     setName(''); setExp('')
   }
 
-  const removeItem = (id) => updatePantry(pantry.filter(p => p.id !== id))
+  const removeItem = (id) => {
+    const item = pantry.find(p => p.id === id)
+    if (!confirm('Remove "' + (item?.name||'this item') + '" from pantry?')) return
+    updatePantry(pantry.filter(p => p.id !== id))
+  }
 
   // Smart expiry detection using actual dates and text
   const getExpiryStatus = (e) => {

@@ -280,14 +280,18 @@ Return ONLY JSON: {"name":"","desc":"","cuisine":"","calories":0}`
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13}}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
             Regenerate
           </button>
-          <button className="sec-btn" style={{marginLeft:8}} onClick={()=>{if(confirm('Clear this plan?'))clearPlan()}}>
+          <button className="sec-btn" style={{marginLeft:8}} onClick={()=>{
+  if(!confirm('Clear your current meal plan?')) return
+  if(!confirm('Are you sure? This cannot be undone.')) return
+  clearPlan()
+}}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13}}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
             Clear
           </button>
         </div>
 
         {/* PLAN HISTORY */}
-        {savedPlans.length > 1 && (
+        {savedPlans.length > 0 && (
           <div style={{marginBottom:16}}>
             <button onClick={()=>setShowHistory(p=>!p)}
               style={{display:'flex',alignItems:'center',gap:6,background:'none',border:'1px solid var(--bdr2)',
@@ -299,35 +303,77 @@ Return ONLY JSON: {"name":"","desc":"","cuisine":"","calories":0}`
                 <polyline points="6 9 12 15 18 9"/>
               </svg>
             </button>
-            {showHistory && (
-              <div style={{marginTop:8,display:'flex',flexDirection:'column',gap:6}}>
-                {savedPlans.map((p,i) => {
-                  const isActive = JSON.stringify(p.plan_data) === JSON.stringify(plan)
-                  const date = new Date(p.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
-                  return (
-                    <div key={p.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',
-                      padding:'10px 12px',background:isActive?'var(--gl)':'var(--bg2)',
-                      borderRadius:'var(--r)',border:`1px solid ${isActive?'rgba(31,78,26,.2)':'var(--bdr)'}`}}>
-                      <div>
-                        <div style={{fontSize:12,fontWeight:600,color:'var(--t)'}}>
-                          {i===0?'Current plan':date}
-                          {isActive&&<span style={{fontSize:10,marginLeft:6,color:'var(--g)',fontWeight:700}}>● Active</span>}
-                        </div>
-                        <div style={{fontSize:11,color:'var(--t3)',marginTop:2}}>
-                          {p.plan_data?.cuisinesUsed?.slice(0,3).join(', ')||'Meal plan'}
-                          {' · '}{p.plan_data?._cur||'$'}{p.plan_data?.summary?.totalEstimatedCost?.toFixed(2)||'—'}
-                        </div>
-                      </div>
-                      {!isActive && (
-                        <button onClick={()=>{updatePlan(p.plan_data);setShowHistory(false)}}
-                          style={{padding:'5px 10px',background:'var(--g)',color:'#fff',border:'none',
-                            borderRadius:'var(--r)',cursor:'pointer',fontFamily:'var(--sans)',fontSize:11,fontWeight:600}}>
-                          Load
-                        </button>
-                      )}
+            {/* CURRENT PLAN CARD */}
+            {savedPlans[0] && (
+              <div style={{padding:'12px 14px',background:'linear-gradient(135deg,#1a5c15,#2d8a27)',
+                borderRadius:12,marginBottom:showHistory?8:0}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                    <span style={{fontSize:10,padding:'2px 8px',background:'rgba(255,255,255,.2)',
+                      borderRadius:99,color:'#fff',fontWeight:600}}>● ACTIVE</span>
+                    <span style={{fontSize:11,color:'rgba(255,255,255,.8)'}}>
+                      {new Date(savedPlans[0].created_at).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}
+                    </span>
+                  </div>
+                  <span style={{fontSize:11,color:'rgba(255,255,255,.8)'}}>
+                    {savedPlans[0].plan_data?._cur||'$'}{Number(savedPlans[0].plan_data?.summary?.totalEstimatedCost||0).toFixed(2)} /week
+                  </span>
+                </div>
+                <div style={{fontSize:15,fontWeight:700,color:'#fff',marginBottom:4}}>This week's plan</div>
+                <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                  {(savedPlans[0].plan_data?.cuisinesUsed||[]).slice(0,4).map(c=>(
+                    <span key={c} style={{fontSize:10,padding:'2px 8px',background:'rgba(255,255,255,.15)',
+                      borderRadius:99,color:'#fff'}}>{c}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* OLDER PLANS */}
+            {showHistory && savedPlans.slice(1).map((p,i) => {
+              const date = new Date(p.created_at).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})
+              const cost = Number(p.plan_data?.summary?.totalEstimatedCost||0).toFixed(2)
+              const cur2 = p.plan_data?._cur||'$'
+              const cuisines = (p.plan_data?.cuisinesUsed||[]).slice(0,3)
+              const mealsCount = (p.plan_data?.weekPlan||[]).length * 3
+              return (
+                <div key={p.id} style={{padding:'12px 14px',background:'var(--bg2)',
+                  borderRadius:12,border:'1px solid var(--bdr)',marginBottom:8,
+                  display:'flex',alignItems:'center',gap:12}}>
+                  <div style={{width:44,height:44,borderRadius:10,background:'var(--bg)',
+                    border:'1px solid var(--bdr)',display:'flex',flexDirection:'column',
+                    alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                    <div style={{fontSize:16,fontWeight:800,color:'var(--t)',lineHeight:1}}>
+                      {new Date(p.created_at).getDate()}
                     </div>
-                  )
-                })}
+                    <div style={{fontSize:9,color:'var(--t3)',fontWeight:600,letterSpacing:.5}}>
+                      {new Date(p.created_at).toLocaleDateString('en-US',{month:'short'}).toUpperCase()}
+                    </div>
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:12,fontWeight:600,color:'var(--t)',marginBottom:3}}>{date}</div>
+                    <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:3}}>
+                      {cuisines.map(c=>(
+                        <span key={c} style={{fontSize:10,padding:'1px 6px',background:'var(--gl)',
+                          borderRadius:99,color:'var(--gm)'}}>{c}</span>
+                      ))}
+                    </div>
+                    <div style={{fontSize:11,color:'var(--t3)'}}>{cur2}{cost} · {mealsCount} meals</div>
+                  </div>
+                  <button onClick={()=>{updatePlan(p.plan_data);setShowHistory(false)}}
+                    style={{padding:'7px 12px',background:'var(--g)',color:'#fff',border:'none',
+                      borderRadius:'var(--r)',cursor:'pointer',fontFamily:'var(--sans)',
+                      fontSize:11,fontWeight:700,flexShrink:0}}>
+                    Load
+                  </button>
+                </div>
+              )
+            })}
+            {showHistory && (
+              <div style={{textAlign:'center',padding:'8px',fontSize:11,color:'var(--t3)'}}>
+                {4-savedPlans.length>0
+                  ? `${4-savedPlans.length} slot${4-savedPlans.length>1?'s':''} remaining`
+                  : '4/4 slots full — new plan replaces oldest'}
               </div>
             )}
           </div>

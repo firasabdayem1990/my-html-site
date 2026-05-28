@@ -40,7 +40,10 @@ export default function ShoppingTab({ state }) {
     updateChecked(newChecked)
   }
 
-  const uncheckAll = () => updateChecked(new Set())
+  const uncheckAll = () => {
+    if (!confirm('Uncheck all items?')) return
+    updateChecked(new Set())
+  }
 
   const removeExtraDish = (dishName) => {
     updateExtraItems((extraItems || []).filter(e => e.dishName !== dishName))
@@ -244,7 +247,10 @@ export default function ShoppingTab({ state }) {
                   <polyline points="6 9 12 15 18 9"/>
                 </svg>
               </button>
-              <button onClick={() => updateExtraItems([])}
+              <button onClick={() => {
+                  if (!confirm('Clear all recipe extras from shopping list?')) return
+                  updateExtraItems([])
+                }}
                 style={{fontSize:11,color:'var(--t3)',background:'none',border:'1px solid var(--bdr)',
                   borderRadius:99,padding:'3px 9px',cursor:'pointer',fontFamily:'var(--sans)'}}>
                 Clear all

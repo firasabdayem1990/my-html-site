@@ -282,6 +282,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
   const handleDeleteComment = async (recipeId, commentId) => {
     if (!state.user) return
     try {
+      if (!confirm('Delete your comment?')) return
       await deleteComment(state.user.id, commentId)
       setComments(p => ({...p, [recipeId]: (p[recipeId]||[]).filter(c => c.id !== commentId)}))
       setCommunity(p => p.map(r => r.id===recipeId ? {...r, comment_count:Math.max(0,(r.comment_count||1)-1)} : r))
@@ -598,7 +599,12 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
               <div className="recipe-hinfo">
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                   <div style={{fontSize:10,fontWeight:500,letterSpacing:.5,textTransform:'uppercase',color:'var(--t3)',marginBottom:3}}>{searchResult.cuisine||'World cuisine'}</div>
-                  <button onClick={e=>{e.stopPropagation();setSearchResult(null);try{localStorage.removeItem('sb_last_search')}catch(e2){}}} style={{background:'none',border:'none',cursor:'pointer',fontSize:11,color:'var(--t3)',fontFamily:'var(--sans)',padding:'2px 6px',borderRadius:6}}>✕ Clear</button>
+                  <button onClick={e=>{
+  e.stopPropagation()
+  if(!confirm('Remove this search result?')) return
+  setSearchResult(null)
+  try{localStorage.removeItem('sb_last_search')}catch(e2){}
+}} style={{background:'none',border:'none',cursor:'pointer',fontSize:11,color:'var(--t3)',fontFamily:'var(--sans)',padding:'2px 6px',borderRadius:6}}>✕ Clear</button>
                 </div>
                 <div className="recipe-meal-name">{searchResult.dishName||searchQ}</div>
                 <div style={{display:'flex',gap:8,marginTop:6,flexWrap:'wrap'}}>
@@ -714,7 +720,12 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
           <div style={{marginBottom:16}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
               <div style={{fontSize:11,fontWeight:600,color:'var(--t3)',letterSpacing:.5}}>RECENT SEARCHES</div>
-              <button onClick={()=>{setSearchHistory([]);try{localStorage.removeItem('sb_search_history')}catch(e){}}}
+              <button onClick={()=>{
+                if (!confirm('Clear your recent search history?')) return
+                setSearchHistory([])
+                try{localStorage.removeItem('sb_search_history')}catch(e){}
+                if(state.user) saveUserMeta(state.user.id,'search_history',[]).catch(()=>{})
+              }}
                 style={{fontSize:11,color:'var(--t3)',background:'none',border:'none',cursor:'pointer',fontFamily:'var(--sans)'}}>
                 Clear all
               </button>
@@ -737,6 +748,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
           <div style={{display:'flex',alignItems:'center',gap:10,margin:'18px 0'}}>
             <div className="or-divider" style={{flex:1,margin:0}}>from your meal plan</div>
             <button onClick={async()=>{
+              if (!confirm('Clear all cached recipes? They will be re-fetched next time you open them.')) return
               try { localStorage.removeItem('sb_recipe_cache') } catch(e) {}
               if (state.user) await clearRecipeCacheCloud(state.user.id).catch(()=>{})
               setRecipeCache({})
@@ -943,7 +955,12 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                       </>}
                       {r.tip&&<div className="comm-author-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>{r.tip}</div>}
                       {state.user&&r.user_id===state.user.id&&(
-                        <button className="comm-del-btn" onClick={async()=>{if(confirm('Delete?')){await deleteCommunityRecipe(state.user.id,r.id);setCommunity(p=>p.filter(x=>x.id!==r.id))}}}>
+                        <button className="comm-del-btn" onClick={async()=>{
+  if(!confirm('Delete your recipe "' + r.dish + '"?')) return
+  if(!confirm('Are you sure? This cannot be undone.')) return
+  await deleteCommunityRecipe(state.user.id,r.id)
+  setCommunity(p=>p.filter(x=>x.id!==r.id))
+}}>
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>Delete my recipe
                         </button>
                       )}
