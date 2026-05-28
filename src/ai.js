@@ -126,8 +126,44 @@ Distribute meals across the week proportionally. Each meal must include "cuisine
     ? `Cuisines: ${cuisines.join(', ')}. Rotate authentically across the week. Include cuisine name per meal.`
     : 'Use varied global cuisines, rotating daily.'
 
-  const pantryStr = pantry.length
-    ? pantry.map(p => `${p.name} (expires: ${p.exp})`).join(', ')
+  // Sort pantry by expiry — most urgent first
+  const today = new Date()
+  const sortedPantry = [...(pantry||[])].sort((a, b) => {
+    const da = new Date(a.exp), db = new Date(b.exp)
+    const validA = !isNaN(da), validB = !isNaN(db)
+    if (validA && validB) return da - db
+    if (validA) return -1
+    if (validB) return 1
+    return 0
+  })
+
+  const expiringItems = sortedPantry.filter(p => {
+    const d = new Date(p.exp)
+    if (isNaN(d)) return false
+    const daysLeft = Math.ceil((d - today) / (1000*60*60*24))
+    return daysLeft <= 5
+  })
+
+  const regularPantry = sortedPantry.filter(p => {
+    const d = new Date(p.exp)
+    if (isNaN(d)) return true
+    const daysLeft = Math.ceil((d - today) / (1000*60*60*24))
+    return daysLeft > 5
+  })
+
+  const pantryStr = sortedPantry.length
+    ? sortedPantry.map(p => {
+        const d = new Date(p.exp)
+        if (!isNaN(d)) {
+          const daysLeft = Math.ceil((d - today) / (1000*60*60*24))
+          if (daysLeft < 0) return `${p.name} (EXPIRED - remove from pantry)`
+          if (daysLeft === 0) return `${p.name} (expires TODAY - use immediately)`
+          if (daysLeft <= 2) return `${p.name} (expires in ${daysLeft} day${daysLeft>1?'s':''} - URGENT)`
+          if (daysLeft <= 5) return `${p.name} (expires in ${daysLeft} days - use soon)`
+          return `${p.name} (expires: ${p.exp})`
+        }
+        return `${p.name} (no expiry)`
+      }).join(', ')
     : 'none'
 
   const effectivePortions = adults + (kids * 0.5)
@@ -156,6 +192,15 @@ ${restrictionLine}
 ${pregnantLine}
 ${dislikedMeals?.length ? `NEVER include these meals (user rated them poorly): ${dislikedMeals.join(', ')}` : ''}
 ${likedMeals?.length ? `USER LOVES these meals — include similar ones or these exact meals: ${likedMeals.slice(0,5).join(', ')}` : ''}
+
+PANTRY PRIORITY RULES — VERY IMPORTANT:
+${expiringStr ? `🚨 ${expiringStr} — BUILD MEALS AROUND THESE FIRST. They must appear in Monday/Tuesday meals.` : ''}
+- Use pantry items in as many meals as possible to reduce waste
+- If user has chicken in pantry → plan chicken-based meals early in the week
+- If user has vegetables expiring → use them in salads, stir-fries, soups early in week
+- If user has grains/legumes → use them as base for multiple meals
+- NEVER suggest buying something the user already has in pantry
+- Expiring items MUST be used in the first 2-3 days of the meal plan
 
 ${calLine}
 
