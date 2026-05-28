@@ -5,6 +5,19 @@ import MainApp from './components/MainApp.jsx'
 
 export default function App() {
   const [user, setUser] = useState(null)
+  const [isOffline, setIsOffline] = useState(!navigator.onLine)
+  const [notifAsked, setNotifAsked] = useState(false)
+
+  useEffect(() => {
+    const goOffline = () => setIsOffline(true)
+    const goOnline = () => setIsOffline(false)
+    window.addEventListener('offline', goOffline)
+    window.addEventListener('online', goOnline)
+    return () => {
+      window.removeEventListener('offline', goOffline)
+      window.removeEventListener('online', goOnline)
+    }
+  }, [])
   const [loading, setLoading] = useState(true)
   const [guestMode, setGuestMode] = useState(false)
   const [loadingMsg, setLoadingMsg] = useState('Loading your basket…')
@@ -39,6 +52,45 @@ export default function App() {
     setUser(null)
     setGuestMode(false)
   }
+
+  // Check pantry expiry and notify
+  const checkPantryExpiry = (pantry) => {
+    if (!pantry?.length) return
+    const today = new Date()
+    const expiring = pantry.filter(p => {
+      const d = new Date(p.exp)
+      if (isNaN(d)) return false
+      const days = Math.ceil((d - today) / (1000*60*60*24))
+      return days >= 0 && days <= 2
+    })
+    if (expiring.length > 0 && 'Notification' in window && Notification.permission === 'granted') {
+      new Notification('🛒 Smart Basket AI', {
+        body: `${expiring.map(p=>p.name).join(', ')} ${expiring.length===1?'is':'are'} expiring soon! Use them in today's meals.`,
+        icon: '/favicon.ico'
+      })
+    }
+  }
+
+  if (isOffline) return (
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+      minHeight:'100vh',background:'var(--bg)',gap:16,padding:24,textAlign:'center'}}>
+      <div style={{width:64,height:64,background:'#fff3cd',borderRadius:18,display:'flex',
+        alignItems:'center',justifyContent:'center',fontSize:32}}>📡</div>
+      <div style={{fontFamily:'var(--serif)',fontSize:20,fontWeight:300,color:'var(--t)'}}>
+        No internet connection
+      </div>
+      <div style={{fontSize:13,color:'var(--t3)',lineHeight:1.6,maxWidth:280}}>
+        Smart Basket AI needs internet to generate plans and fetch recipes.
+        <br/><br/>
+        Your saved plans and shopping list are still available — reconnect to sync.
+      </div>
+      <button onClick={()=>setIsOffline(!navigator.onLine)}
+        style={{padding:'12px 24px',background:'var(--g)',color:'#fff',border:'none',
+          borderRadius:'var(--r)',cursor:'pointer',fontFamily:'var(--sans)',fontSize:13,fontWeight:600}}>
+        Try again
+      </button>
+    </div>
+  )
 
   if (loading) {
     return (
