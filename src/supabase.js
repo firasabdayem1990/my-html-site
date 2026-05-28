@@ -154,7 +154,9 @@ export async function loadCommunityRecipes() {
   const { data, error } = await supabase
     .from('community_recipes')
     .select('*')
+    .order('avg_rating', { ascending: false })
     .order('likes', { ascending: false })
+    .order('created_at', { ascending: false })
   if (error) throw error
   return data || []
 }
