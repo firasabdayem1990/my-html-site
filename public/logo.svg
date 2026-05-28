@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#1a5c15"/>
+  <rect width="512" height="256" rx="112" fill="#2d8a27" opacity="0.3"/>
+
+  <!-- Basket body -->
+  <path d="M120 300 Q130 370 256 378 Q382 370 392 300" fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Basket top line -->
+  <line x1="112" y1="296" x2="400" y2="296" stroke="#ffffff" stroke-width="24" stroke-linecap="round"/>
+
+  <!-- Basket weave lines -->
+  <line x1="172" y1="298" x2="162" y2="374" stroke="#ffffff" stroke-width="14" stroke-linecap="round" opacity="0.6"/>
+  <line x1="214" y1="298" x2="208" y2="378" stroke="#ffffff" stroke-width="14" stroke-linecap="round" opacity="0.6"/>
+  <line x1="256" y1="298" x2="256" y2="378" stroke="#ffffff" stroke-width="14" stroke-linecap="round" opacity="0.6"/>
+  <line x1="298" y1="298" x2="304" y2="378" stroke="#ffffff" stroke-width="14" stroke-linecap="round" opacity="0.6"/>
+  <line x1="340" y1="298" x2="350" y2="374" stroke="#ffffff" stroke-width="14" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- Basket handle -->
+  <path d="M180 296 Q180 196 256 196 Q332 196 332 296" fill="none" stroke="#ffffff" stroke-width="24" stroke-linecap="round"/>
+
+  <!-- AI circuit nodes -->
+  <circle cx="210" cy="336" r="12" fill="#a8f5a0"/>
+  <circle cx="256" cy="316" r="12" fill="#a8f5a0"/>
+  <circle cx="302" cy="336" r="12" fill="#a8f5a0"/>
+  <line x1="210" y1="336" x2="256" y2="316" stroke="#a8f5a0" stroke-width="8" stroke-linecap="round"/>
+  <line x1="256" y1="316" x2="302" y2="336" stroke="#a8f5a0" stroke-width="8" stroke-linecap="round"/>
+  <line x1="256" y1="316" x2="256" y2="296" stroke="#a8f5a0" stroke-width="8" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- Leaf accent -->
+  <path d="M368 362 Q398 344 394 368 Q390 392 368 380 Q352 370 368 362Z" fill="#6ee87a"/>
+</svg>
