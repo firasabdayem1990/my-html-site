@@ -624,6 +624,88 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
               <div className="recipe-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
             </div>
             {searchResultOpen && <RecipeBody r={searchResult}/>}
+
+            {/* COMMUNITY VERSIONS OF THIS DISH */}
+            {searchResultOpen && (() => {
+              const dishName = (searchResult.dishName || searchQ || '').toLowerCase()
+              const matches = community.filter(r =>
+                r.dish?.toLowerCase().includes(dishName) ||
+                dishName.includes(r.dish?.toLowerCase() || '')
+              )
+              if (!matches.length) return null
+              return (
+                <div style={{padding:'10px 14px 14px',borderTop:'1px solid var(--bdr)'}}>
+                  <div style={{fontSize:11,fontWeight:700,color:'var(--t3)',letterSpacing:.5,marginBottom:8}}>
+                    👨‍🍳 {matches.length} COMMUNITY VERSION{matches.length>1?'S':''} OF THIS DISH
+                  </div>
+                  {matches.map(r => {
+                    const isOpen = openCards['comm_search_'+r.id]
+                    const isLiked = likes.has(r.id)
+                    return (
+                      <div key={r.id} style={{marginBottom:8,background:'var(--bg2)',
+                        borderRadius:'var(--r)',border:'1px solid var(--bdr)',overflow:'hidden'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',cursor:'pointer'}}
+                          onClick={()=>setOpenCards(p=>({...p,['comm_search_'+r.id]:!isOpen}))}>
+                          <div style={{width:32,height:32,borderRadius:'50%',background:'var(--g)',
+                            color:'#fff',fontSize:12,fontWeight:700,display:'flex',alignItems:'center',
+                            justifyContent:'center',flexShrink:0}}>
+                            {(r.author||'?')[0].toUpperCase()}
+                          </div>
+                          <div style={{flex:1}}>
+                            <div style={{fontSize:13,fontWeight:600,color:'var(--t)'}}>{r.author}'s {r.dish}</div>
+                            <div style={{display:'flex',gap:6,marginTop:2,flexWrap:'wrap'}}>
+                              {r.avg_rating>0 && <span style={{fontSize:11,color:'#f5a623'}}>⭐ {r.avg_rating}</span>}
+                              <span style={{fontSize:11,color:'var(--t3)'}}>❤️ {r.likes||0}</span>
+                              {r.cook_time && <span style={{fontSize:11,color:'var(--t3)'}}>⏱ {r.cook_time}</span>}
+                            </div>
+                          </div>
+                          <button onClick={e=>{e.stopPropagation();handleLike(r.id)}}
+                            style={{background:'none',border:'none',cursor:'pointer',fontSize:16,
+                              color:isLiked?'#e55':'var(--t3)',padding:'4px'}}>
+                            {isLiked?'❤️':'🤍'}
+                          </button>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                            strokeLinecap="round" strokeLinejoin="round"
+                            style={{width:13,height:13,color:'var(--t3)',
+                              transform:isOpen?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s',flexShrink:0}}>
+                            <polyline points="6 9 12 15 18 9"/>
+                          </svg>
+                        </div>
+                        {isOpen && (
+                          <div style={{padding:'0 12px 12px',borderTop:'1px solid var(--bdr)'}}>
+                            {(r.ingredients||[]).length>0&&<>
+                              <div style={{fontSize:10,fontWeight:700,color:'var(--t3)',letterSpacing:.5,margin:'10px 0 6px'}}>INGREDIENTS</div>
+                              {r.ingredients.map((ing,i)=>(
+                                <div key={i} style={{fontSize:12,color:'var(--t2)',padding:'3px 0',
+                                  borderBottom:'1px solid var(--bdr)',display:'flex',gap:8}}>
+                                  <span style={{color:'var(--t3)',minWidth:60}}>{ing.qty||''}</span>
+                                  <span>{ing.name||ing}</span>
+                                </div>
+                              ))}
+                            </>}
+                            {(r.steps||[]).length>0&&<>
+                              <div style={{fontSize:10,fontWeight:700,color:'var(--t3)',letterSpacing:.5,margin:'10px 0 6px'}}>METHOD</div>
+                              {r.steps.map((s,i)=>(
+                                <div key={i} style={{display:'flex',gap:8,marginBottom:6,fontSize:12,color:'var(--t2)'}}>
+                                  <span style={{width:20,height:20,borderRadius:'50%',background:'var(--g)',
+                                    color:'#fff',fontSize:10,fontWeight:700,display:'flex',alignItems:'center',
+                                    justifyContent:'center',flexShrink:0}}>{i+1}</span>
+                                  <span style={{lineHeight:1.5}}>{s}</span>
+                                </div>
+                              ))}
+                            </>}
+                            {r.tip&&<div style={{marginTop:8,padding:'8px 10px',background:'var(--al)',
+                              borderRadius:'var(--r)',fontSize:11,color:'var(--am)'}}>
+                              💡 {r.tip}
+                            </div>}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </div>
         )}
 
