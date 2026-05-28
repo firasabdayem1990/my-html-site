@@ -459,13 +459,15 @@ Distribute proportionally. Each meal must include "cuisine" field.`
       const d = new Date(p.exp)
       if (!isNaN(d)) {
         const daysLeft = Math.ceil((d - today) / (1000*60*60*24))
-        if (daysLeft < 0) return `${p.name} (EXPIRED)`
-        if (daysLeft === 0) return `${p.name} (expires TODAY - use immediately)`
-        if (daysLeft <= 2) return `${p.name} (expires in ${daysLeft} day${daysLeft>1?'s':''} - URGENT)`
-        if (daysLeft <= 5) return `${p.name} (expires in ${daysLeft} days - use soon)`
-        return `${p.name} (expires: ${p.exp})`
+        const qtyStr = p.quantity ? ` [have: ${p.quantity} ${p.unit||''}]` : ''
+        if (daysLeft < 0) return `${p.name}${qtyStr} (EXPIRED)`
+        if (daysLeft === 0) return `${p.name}${qtyStr} (expires TODAY - use immediately)`
+        if (daysLeft <= 2) return `${p.name}${qtyStr} (expires in ${daysLeft} day${daysLeft>1?'s':''} - URGENT)`
+        if (daysLeft <= 5) return `${p.name}${qtyStr} (expires in ${daysLeft} days - use soon)`
+        return `${p.name}${qtyStr} (expires: ${p.exp})`
       }
-      return `${p.name} (no expiry)`
+      const qtyStr = p.quantity ? ` [have: ${p.quantity} ${p.unit||''}]` : ''
+      return `${p.name}${qtyStr} (no expiry)`
     }).join(', ')
   })()
 
