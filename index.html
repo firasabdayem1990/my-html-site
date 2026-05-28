@@ -5,72 +5,17 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
   <title>Smart Basket AI</title>
   <meta name="description" content="AI-powered meal planning. Plan smarter, spend less."/>
-  <meta name="theme-color" content="#1a5c15"/>
-
-  <!-- Favicon -->
-  <link rel="icon" type="image/svg+xml" href="/logo.svg"/>
-  <link rel="icon" type="image/png" href="/icon-192.png"/>
-
-  <!-- PWA -->
+  <meta name="theme-color" content="#1F4E1A"/>
   <link rel="manifest" href="/manifest.json"/>
+  <link rel="icon" type="image/svg+xml" href="/logo.svg"/>
   <link rel="apple-touch-icon" href="/icon-192.png"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="apple-mobile-web-app-title" content="Smart Basket AI"/>
-
-  <!-- Social sharing -->
-  <meta property="og:title" content="Smart Basket AI"/>
-  <meta property="og:description" content="AI-powered meal planning. Plan smarter, spend less."/>
-  <meta property="og:type" content="website"/>
-
-  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;1,9..144,300&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
-
-  <!-- Prevent blank screen on iOS PWA -->
-  <style>
-    html, body { margin: 0; padding: 0; background: #1a5c15; min-height: 100vh; }
-    #root { min-height: 100vh; background: #f8f6f1; }
-    #splash {
-      position: fixed; inset: 0; background: #1a5c15;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 16px;
-      z-index: 9999; transition: opacity 0.4s;
-    }
-    #splash svg { width: 72px; height: 72px; }
-    #splash p { color: rgba(255,255,255,0.8); font-family: system-ui,sans-serif; font-size: 14px; margin: 0; }
-  </style>
 </head>
 <body>
-  <!-- Splash screen prevents blank white flash on iOS -->
-  <div id="splash">
-    <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-      <rect width="512" height="512" rx="112" fill="#2d8a27"/>
-      <path d="M120 300 Q130 370 256 378 Q382 370 392 300" fill="none" stroke="#fff" stroke-width="28" stroke-linecap="round"/>
-      <line x1="112" y1="296" x2="400" y2="296" stroke="#fff" stroke-width="24" stroke-linecap="round"/>
-      <path d="M180 296 Q180 196 256 196 Q332 196 332 296" fill="none" stroke="#fff" stroke-width="24" stroke-linecap="round"/>
-      <circle cx="210" cy="336" r="12" fill="#a8f5a0"/>
-      <circle cx="256" cy="316" r="12" fill="#a8f5a0"/>
-      <circle cx="302" cy="336" r="12" fill="#a8f5a0"/>
-      <line x1="210" y1="336" x2="256" y2="316" stroke="#a8f5a0" stroke-width="8" stroke-linecap="round"/>
-      <line x1="256" y1="316" x2="302" y2="336" stroke="#a8f5a0" stroke-width="8" stroke-linecap="round"/>
-    </svg>
-    <p>Loading Smart Basket AI…</p>
-  </div>
-
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
-  <script>
-    // Hide splash when app loads
-    window.addEventListener('load', function() {
-      setTimeout(function() {
-        var splash = document.getElementById('splash');
-        if (splash) {
-          splash.style.opacity = '0';
-          setTimeout(function() { splash.remove(); }, 400);
-        }
-      }, 800);
-    });
-  </script>
 </body>
 </html>
