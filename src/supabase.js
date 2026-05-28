@@ -201,6 +201,57 @@ export async function toggleLike(userId, recipeId, isLiked) {
   }
 }
 
+// ── MEAL PREFERENCES ──
+export async function saveMealPreference(userId, mealName, rating, cuisine) {
+  if (!supabase) return
+  const { error } = await supabase.from('meal_preferences').upsert({
+    user_id: userId,
+    meal_name: mealName,
+    rating,
+    cuisine: cuisine || ''
+  }, { onConflict: 'user_id,meal_name' })
+  if (error) throw error
+}
+
+export async function loadMealPreferences(userId) {
+  if (!supabase) return { liked: [], disliked: [] }
+  const { data, error } = await supabase
+    .from('meal_preferences')
+    .select('meal_name, rating, cuisine')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+  if (error) throw error
+  const liked = (data||[]).filter(m => m.rating >= 4).map(m => m.meal_name)
+  const disliked = (data||[]).filter(m => m.rating <= 2).map(m => m.meal_name)
+  return { liked, disliked }
+}
+
+// ── WEEKLY SPEND ──
+export async function saveWeeklySpend(userId, weekKey, totalCost, budget, mealsCooked) {
+  if (!supabase) return
+  const { error } = await supabase.from('weekly_spend').upsert({
+    user_id: userId,
+    week_key: weekKey,
+    total_cost: totalCost,
+    budget,
+    meals_cooked: mealsCooked
+  }, { onConflict: 'user_id,week_key' })
+  if (error) throw error
+}
+
+export async function loadWeeklySpend(userId) {
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('weekly_spend')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(8)
+  if (error) throw error
+  return data || []
+}
+
 // ── SEARCH HISTORY & EXTRA ITEMS ──
 export async function saveUserMeta(userId, key, value) {
   if (!supabase) return
