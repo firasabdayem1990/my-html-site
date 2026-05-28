@@ -195,7 +195,6 @@ export default function ShoppingTab({ state }) {
             </div>
           )
         })}
-
         )}
         {/* PANTRY ITEMS SECTION */}
         {(()=>{
