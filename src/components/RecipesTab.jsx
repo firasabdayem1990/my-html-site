@@ -64,6 +64,8 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
   const [commSubmitting, setCommSubmitting] = useState(false)
   const [commSuccess, setCommSuccess] = useState(false)
   const [likes, setLikes] = useState(new Set())
+  const [commFilter, setCommFilter] = useState({cuisine:'', diet:'', sort:'likes'})
+  const [commSearch, setCommSearch] = useState('')
   const [userRatings, setUserRatings] = useState({})
   const [comments, setComments] = useState({})
   const [commentInputs, setCommentInputs] = useState({})
@@ -747,6 +749,45 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
             </div>
           )}
 
+          {/* COMMUNITY FILTERS */}
+          {community.length > 0 && (
+            <div style={{marginBottom:12}}>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
+                <div style={{position:'relative',flex:1,minWidth:140}}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    style={{width:13,height:13,position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',color:'var(--t3)',pointerEvents:'none'}}>
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                  </svg>
+                  <input type="text" placeholder="Search community…" value={commSearch}
+                    onChange={e=>setCommSearch(e.target.value)}
+                    style={{width:'100%',paddingLeft:30,padding:'8px 10px 8px 30px',fontSize:12,
+                      border:'1px solid var(--bdr2)',borderRadius:'var(--r)',background:'var(--bg)',
+                      color:'var(--t)',fontFamily:'var(--sans)',outline:'none',boxSizing:'border-box'}}/>
+                </div>
+                <select value={commFilter.sort} onChange={e=>setCommFilter(p=>({...p,sort:e.target.value}))}
+                  style={{padding:'8px 10px',fontSize:12,border:'1px solid var(--bdr2)',borderRadius:'var(--r)',
+                    background:'var(--bg)',color:'var(--t)',fontFamily:'var(--sans)',outline:'none'}}>
+                  <option value="likes">Most liked</option>
+                  <option value="rating">Top rated</option>
+                  <option value="newest">Newest first</option>
+                  <option value="comments">Most commented</option>
+                </select>
+              </div>
+              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                {['All','Lebanese','Italian','Indian','Japanese','Mexican','Mediterranean','Other'].map(c=>(
+                  <button key={c} onClick={()=>setCommFilter(p=>({...p,cuisine:c==='All'?'':c}))}
+                    style={{padding:'4px 10px',fontSize:11,borderRadius:99,cursor:'pointer',
+                      fontFamily:'var(--sans)',fontWeight:commFilter.cuisine===(c==='All'?'':c)?600:400,
+                      background:commFilter.cuisine===(c==='All'?'':c)?'var(--g)':'var(--bg2)',
+                      color:commFilter.cuisine===(c==='All'?'':c)?'#fff':'var(--t2)',
+                      border:`1px solid ${commFilter.cuisine===(c==='All'?'':c)?'var(--g)':'var(--bdr)'}`}}>
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* COMMUNITY FEED */}
           <div>
             {community.length===0&&commLoaded&&(
@@ -755,7 +796,20 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                 No community recipes yet. Be the first!
               </div>
             )}
-            {community.map(r=>{
+            {[...community]
+              .filter(r => {
+                if (commSearch && !r.dish?.toLowerCase().includes(commSearch.toLowerCase()) && 
+                    !r.author?.toLowerCase().includes(commSearch.toLowerCase())) return false
+                if (commFilter.cuisine && r.cuisine !== commFilter.cuisine) return false
+                return true
+              })
+              .sort((a,b) => {
+                if (commFilter.sort === 'rating') return (b.avg_rating||0) - (a.avg_rating||0)
+                if (commFilter.sort === 'newest') return new Date(b.created_at) - new Date(a.created_at)
+                if (commFilter.sort === 'comments') return (b.comment_count||0) - (a.comment_count||0)
+                return (b.likes||0) - (a.likes||0)
+              })
+              .map(r=>{
               const isOpen = openCards['comm_'+r.id]
               const isLiked = likes.has(r.id)
               const userRating = userRatings[r.id] || 0

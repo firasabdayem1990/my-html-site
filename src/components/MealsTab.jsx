@@ -50,6 +50,10 @@ export default function MealsTab({ state, onViewRecipe, onRegenerate }) {
   const { plan, prefs, isDemo, clearPlan, updatePlan } = state
   const [savedPlans, setSavedPlans] = useState([])
   const [showHistory, setShowHistory] = useState(false)
+  const [cookedMeals, setCookedMeals] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('sb_cooked_meals')||'[]')) } catch(e) { return new Set() }
+  })
+  const [swapping, setSwapping] = useState(null) // {day, slot}
 
   useEffect(() => {
     if (!state.user) return
@@ -79,6 +83,54 @@ export default function MealsTab({ state, onViewRecipe, onRegenerate }) {
   const costPerMeal = totalCost > 0 ? totalCost / (7 * 3 * effectivePortions) : 0
   const sav = typeof s.savingsPercent === 'number' ? Math.round(s.savingsPercent) + '%' : '—'
   const cuisines = plan._cuisines || plan.cuisinesUsed || []
+
+  const toggleCooked = (key) => {
+    setCookedMeals(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      try { localStorage.setItem('sb_cooked_meals', JSON.stringify([...next])) } catch(e) {}
+      return next
+    })
+  }
+
+  const swapMeal = async (day, slot, currentMeal) => {
+    setSwapping({day, slot})
+    try {
+      const { generateMealPlan } = await import('../ai.js')
+      // Generate just one meal replacement
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(state.user ? {} : {})
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-5-20250929',
+          max_tokens: 500,
+          messages: [{
+            role: 'user',
+            content: `Suggest ONE alternative ${slot} meal to replace "${currentMeal}" for ${day}. 
+Diet: ${prefs.diet||'omnivore'}. Country: ${prefs.country||'Lebanon'}. Restrictions: ${prefs.restrictions||'none'}.
+Return ONLY JSON: {"name":"","desc":"","cuisine":"","calories":0}`
+          }]
+        })
+      })
+      const data = await response.json()
+      const text = data.content?.map(b=>b.text||'').join('') || ''
+      const clean = text.replace(/```json|```/g,'').trim()
+      const fb = clean.indexOf('{'), lb = clean.lastIndexOf('}')
+      const newMeal = JSON.parse(clean.substring(fb, lb+1))
+      
+      // Update the plan
+      const updatedPlan = JSON.parse(JSON.stringify(plan))
+      const dayObj = updatedPlan.weekPlan.find(d => d.day === day)
+      if (dayObj) dayObj[slot] = {...newMeal}
+      updatePlan(updatedPlan)
+    } catch(e) {
+      alert('Could not swap meal — please try again')
+    }
+    setSwapping(null)
+  }
 
   return (
     <section className="sec on">
@@ -200,11 +252,16 @@ export default function MealsTab({ state, onViewRecipe, onRegenerate }) {
                       <span className={`mpill ${PC[slot]}`}>{PL[slot]}</span>
                       <div className="minfo">
                         <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                          <div className="mname">{m.name || '—'}</div>
+                          <div className="mname" style={{textDecoration:cookedMeals.has(`${day.day}_${slot}`)? 'line-through':'none',opacity:cookedMeals.has(`${day.day}_${slot}`)?0.5:1}}>{m.name || '—'}</div>
                           {(state.pantry||[]).length > 0 && m.name && (
                             <span style={{fontSize:10,padding:'2px 6px',background:'#f0faf0',
                               border:'1px solid rgba(31,78,26,.15)',borderRadius:99,
                               color:'var(--gm)',fontWeight:500}}>🏠 uses pantry</span>
+                          )}
+                          {cookedMeals.has(`${day.day}_${slot}`) && (
+                            <span style={{fontSize:10,padding:'2px 6px',background:'var(--gl)',
+                              border:'1px solid rgba(31,78,26,.2)',borderRadius:99,
+                              color:'var(--g)',fontWeight:600}}>✅ Cooked!</span>
                           )}
                         </div>
                         {m.desc && <div className="mdesc">{m.desc}</div>}
@@ -216,10 +273,30 @@ export default function MealsTab({ state, onViewRecipe, onRegenerate }) {
                       </div>
                     </div>
                     {m.name && (
-                      <button className="recipe-load-btn" style={{marginTop:10}} onClick={() => onViewRecipe(rid, m)}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-                        View recipe
-                      </button>
+                      <div style={{display:'flex',gap:6,marginTop:10,flexWrap:'wrap'}}>
+                        <button className="recipe-load-btn" style={{flex:1}} onClick={() => onViewRecipe(rid, m)}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                          View recipe
+                        </button>
+                        <button onClick={()=>toggleCooked(`${day.day}_${slot}`)}
+                          style={{padding:'8px 12px',fontSize:11,fontWeight:600,
+                            background:cookedMeals.has(`${day.day}_${slot}`)? 'var(--gl)':'var(--bg2)',
+                            color:cookedMeals.has(`${day.day}_${slot}`)? 'var(--g)':'var(--t2)',
+                            border:'1px solid var(--bdr)',borderRadius:'var(--r)',
+                            cursor:'pointer',fontFamily:'var(--sans)',flexShrink:0}}>
+                          {cookedMeals.has(`${day.day}_${slot}`) ? '✅ Done' : '👨‍🍳 Mark cooked'}
+                        </button>
+                        <button onClick={()=>swapMeal(day.day, slot, m.name)}
+                          disabled={swapping?.day===day.day&&swapping?.slot===slot}
+                          style={{padding:'8px 12px',fontSize:11,fontWeight:600,
+                            background:'var(--bg2)',color:'var(--t2)',
+                            border:'1px solid var(--bdr)',borderRadius:'var(--r)',
+                            cursor:'pointer',fontFamily:'var(--sans)',flexShrink:0}}>
+                          {swapping?.day===day.day&&swapping?.slot===slot
+                            ? <><div className="spin" style={{width:10,height:10,borderWidth:1.5,display:'inline-block',verticalAlign:'middle',marginRight:4}}></div>Swapping…</>
+                            : '🔄 Swap meal'}
+                        </button>
+                      </div>
                     )}
                   </div>
                 )

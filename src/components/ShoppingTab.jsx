@@ -1,8 +1,24 @@
 import { useState } from 'react'
 
+// Map AI categories to real store sections
+const STORE_SECTIONS = {
+  'Produce': { icon: '🥦', order: 1, label: 'Fruits & Vegetables' },
+  'Proteins': { icon: '🥩', order: 2, label: 'Meat, Fish & Eggs' },
+  'Dairy & Eggs': { icon: '🥛', order: 3, label: 'Dairy & Eggs' },
+  'Grains & Legumes': { icon: '🌾', order: 4, label: 'Grains, Legumes & Pasta' },
+  'Pantry Staples': { icon: '🫙', order: 5, label: 'Pantry & Condiments' },
+  'Frozen': { icon: '🧊', order: 6, label: 'Frozen Foods' },
+  'Bakery': { icon: '🍞', order: 7, label: 'Bakery & Bread' },
+  'Beverages': { icon: '🧃', order: 8, label: 'Beverages' },
+  'Other': { icon: '🛒', order: 9, label: 'Other Items' }
+}
+
+const getSection = (category) => STORE_SECTIONS[category] || { icon: '🛒', order: 9, label: category }
+
 export default function ShoppingTab({ state }) {
   const { plan, checked, updateChecked, prefs, isDemo, extraItems, updateExtraItems } = state
   const [extraOpen, setExtraOpen] = useState(true)
+  const [storeView, setStoreView] = useState(false)
 
   const cur = plan?._cur || prefs.currency || '$'
   const budget = parseFloat(prefs.budget) || 80
@@ -114,12 +130,48 @@ export default function ShoppingTab({ state }) {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
             Print
           </button>
+          <button className="sec-btn" onClick={()=>setStoreView(p=>!p)}
+            style={{background:storeView?'var(--g)':'',color:storeView?'#fff':'',border:storeView?'1px solid var(--g)':''}}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13}}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            {storeView ? 'Store view ✓' : 'Store view'}
+          </button>
         </div>
 
         {plan && <div className="legend"><div className="mdot"></div>Green dot = used in multiple meals</div>}
 
         {/* PLAN SHOPPING LIST */}
-        {list.map(cat => {
+        {storeView ? (
+          // STORE VIEW — sorted by store section order
+          [...list].sort((a,b) => (getSection(a.category).order||9) - (getSection(b.category).order||9)).map(cat => {
+            if (!(cat.items||[]).filter(i=>!i.fromPantry).length) return null
+            const sec = getSection(cat.category)
+            const ck = cat.category.replace(/\W/g,'_')
+            return (
+              <div key={cat.category} className="scat">
+                <div className="scat-hd" style={{display:'flex',alignItems:'center',gap:6}}>
+                  <span style={{fontSize:16}}>{sec.icon}</span>
+                  <span>{sec.label}</span>
+                </div>
+                <div className="sitems">
+                  {cat.items.filter(i=>!i.fromPantry).map((item,i) => {
+                    const k = ck+'_'+i
+                    const isc = checked.has(k)
+                    return (
+                      <div key={k} className={`srow${isc?' chk':''}`} onClick={()=>toggleItem(k)}>
+                        <div className={`chkbox${isc?' on':''}`}></div>
+                        <span className="sname">{item.name}</span>
+                        {item.multiUse && <div className="mdot"></div>}
+                        <span className="sqty">{item.qty||''}</span>
+                        <span className="scost">{cur}{(item.estimatedCost||0).toFixed(2)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })
+        ) : (
+        list.map(cat => {
           if (!(cat.items || []).length) return null
           const ck = cat.category.replace(/\W/g,'_')
           return (
@@ -144,6 +196,7 @@ export default function ShoppingTab({ state }) {
           )
         })}
 
+        )}
         {/* PANTRY ITEMS SECTION */}
         {(()=>{
           const pantryItems = []
