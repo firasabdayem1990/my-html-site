@@ -92,7 +92,7 @@ const getPriceContext = (country) => {
   return COUNTRY_PRICE_CONTEXT[country] || `${country}: use realistic local supermarket prices for this country. Research typical costs for staple ingredients in ${country}.`
 }
 
-export async function generateMealPlan({ budget, adults, kids, people, currency, country, diet, health, restrictions, pantry, cuisines, cuisinePercs, calTarget }) {
+export async function generateMealPlan({ budget, adults, kids, people, currency, country, diet, health, restrictions, pantry, cuisines, cuisinePercs, calTarget, likedMeals, dislikedMeals }) {
   const restrictionLine = restrictions
     ? `CRITICAL: STRICT allergies/restrictions — NEVER include: ${restrictions}. Non-negotiable.`
     : 'No restrictions.'
@@ -153,6 +153,8 @@ BUDGET RULES — NON-NEGOTIABLE:
 
 ${restrictionLine}
 ${pregnantLine}
+${dislikedMeals?.length ? `NEVER include these meals (user rated them poorly): ${dislikedMeals.join(', ')}` : ''}
+${likedMeals?.length ? `USER LOVES these meals — include similar ones or these exact meals: ${likedMeals.slice(0,5).join(', ')}` : ''}
 
 ${calLine}
 
