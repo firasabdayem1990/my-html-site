@@ -1,4 +1,4 @@
-import { loadAllPlans } from '../supabase.js'
+import { loadAllPlans, saveMealPreference, loadWeeklySpend, saveWeeklySpend } from '../supabase.js'
 import { useState, useEffect } from 'react'
 
 const FlagImg = ({code, size=14}) => (
@@ -53,14 +53,42 @@ export default function MealsTab({ state, onViewRecipe, onRegenerate }) {
   const [cookedMeals, setCookedMeals] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('sb_cooked_meals')||'[]')) } catch(e) { return new Set() }
   })
-  const [swapping, setSwapping] = useState(null) // {day, slot}
+  const [swapping, setSwapping] = useState(null)
+  const [mealRatings, setMealRatings] = useState({})
+  const [weeklySpend, setWeeklySpend] = useState([])
+  const [showSummary, setShowSummary] = useState(false)
+  const [leftovers, setLeftovers] = useState([])
 
   useEffect(() => {
     if (!state.user) return
-    loadAllPlans(state.user.id).then(plans => {
-      setSavedPlans(plans)
-    }).catch(() => {})
+    loadAllPlans(state.user.id).then(plans => setSavedPlans(plans)).catch(()=>{})
+    loadWeeklySpend(state.user.id).then(spend => setWeeklySpend(spend)).catch(()=>{})
   }, [state.user])
+
+  // Auto-save weekly spend when plan changes
+  useEffect(() => {
+    if (!plan || !state.user) return
+    const weekKey = new Date().toISOString().slice(0,7) + '-W' + Math.ceil((new Date().getDate() + new Date(new Date().getFullYear(), new Date().getMonth(), 1).getDay()) / 7)
+    const totalCost = plan.summary?.totalEstimatedCost || 0
+    const budget = parseFloat(prefs.budget) || 80
+    saveWeeklySpend(state.user.id, weekKey, totalCost, budget, cookedMeals.size).catch(()=>{})
+  }, [cookedMeals.size])
+
+  // Generate leftover suggestions when meals are cooked
+  useEffect(() => {
+    if (cookedMeals.size === 0) return
+    const cooked = []
+    ;(plan?.weekPlan||[]).forEach(day => {
+      ['breakfast','lunch','dinner'].forEach(slot => {
+        if (cookedMeals.has(`${day.day}_${slot}`) && day[slot]?.name) {
+          cooked.push(day[slot].name)
+        }
+      })
+    })
+    if (cooked.length > 0) {
+      setLeftovers(cooked.slice(-3)) // Last 3 cooked meals
+    }
+  }, [cookedMeals.size])
   if (!plan) return (
     <section className="sec on">
       <div className="pad">
@@ -83,6 +111,13 @@ export default function MealsTab({ state, onViewRecipe, onRegenerate }) {
   const costPerMeal = totalCost > 0 ? totalCost / (7 * 3 * effectivePortions) : 0
   const sav = typeof s.savingsPercent === 'number' ? Math.round(s.savingsPercent) + '%' : '—'
   const cuisines = plan._cuisines || plan.cuisinesUsed || []
+
+  const rateMeal = async (mealName, cuisine, rating) => {
+    setMealRatings(p => ({...p, [mealName]: rating}))
+    if (state.user) {
+      await saveMealPreference(state.user.id, mealName, rating, cuisine).catch(()=>{})
+    }
+  }
 
   const toggleCooked = (key) => {
     setCookedMeals(prev => {
@@ -151,6 +186,67 @@ Return ONLY JSON: {"name":"","desc":"","cuisine":"","calories":0}`
             <div className="stat-lbl" style={{color:'var(--gm)'}}>Est. cost per meal · {adults} adult{adults!==1?"s":""}{kids>0?` + ${kids} kid${kids!==1?"s":""}`:""}</div>
           </div>}
         </div>
+
+        {/* WEEKLY SAVINGS SUMMARY */}
+        {weeklySpend.length > 0 && (
+          <div style={{marginBottom:12}}>
+            <button onClick={()=>setShowSummary(p=>!p)}
+              style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',
+                padding:'10px 14px',background:'linear-gradient(135deg,#1a5c15,#2d8a27)',
+                borderRadius:'var(--r)',border:'none',cursor:'pointer',fontFamily:'var(--sans)'}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <span style={{fontSize:16}}>📊</span>
+                <span style={{fontSize:12,fontWeight:700,color:'#fff'}}>Your spending history</span>
+              </div>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                style={{width:13,height:13,transform:showSummary?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s'}}>
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            {showSummary && (
+              <div style={{padding:'12px',background:'var(--bg2)',borderRadius:'0 0 var(--r) var(--r)',
+                border:'1px solid var(--bdr)',borderTop:'none'}}>
+                {weeklySpend.map((w,i) => {
+                  const saved = w.budget - w.total_cost
+                  const pct = Math.min(100, Math.round((w.total_cost/w.budget)*100))
+                  return (
+                    <div key={i} style={{marginBottom:i<weeklySpend.length-1?10:0}}>
+                      <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}>
+                        <span style={{fontSize:11,color:'var(--t2)',fontWeight:500}}>{w.week_key}</span>
+                        <div style={{display:'flex',gap:8}}>
+                          <span style={{fontSize:11,color:'var(--t2)'}}>{cur}{Number(w.total_cost).toFixed(2)} spent</span>
+                          <span style={{fontSize:11,fontWeight:700,color:saved>=0?'var(--g)':'#e55'}}>
+                            {saved>=0?`💰 $${saved.toFixed(2)} saved`:`⚠️ $${Math.abs(saved).toFixed(2)} over`}
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{height:4,background:'var(--bdr)',borderRadius:99,overflow:'hidden'}}>
+                        <div style={{height:'100%',width:`${pct}%`,background:pct>100?'#e55':'var(--g)',borderRadius:99}}></div>
+                      </div>
+                      {w.meals_cooked > 0 && (
+                        <div style={{fontSize:10,color:'var(--t3)',marginTop:2}}>✅ {w.meals_cooked} meals cooked</div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* LEFTOVER SUGGESTIONS */}
+        {leftovers.length > 0 && (
+          <div style={{marginBottom:12,padding:'10px 14px',background:'#fff9e6',
+            border:'1px solid #ffe066',borderRadius:'var(--r)',borderLeft:'3px solid #f0a000'}}>
+            <div style={{fontSize:12,fontWeight:700,color:'#8a6000',marginBottom:4}}>
+              🍱 Use your leftovers!
+            </div>
+            <div style={{fontSize:11,color:'#8a6000',lineHeight:1.6}}>
+              You cooked: <strong>{leftovers.join(', ')}</strong>
+              <br/>💡 Use leftovers in tomorrow's lunch to save time & money!
+            </div>
+          </div>
+        )}
 
         {/* CALORIE STAT */}
         {prefs.calTarget > 0 && (
@@ -278,6 +374,20 @@ Return ONLY JSON: {"name":"","desc":"","cuisine":"","calories":0}`
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
                           View recipe
                         </button>
+                        {/* MEAL RATING */}
+                        <div style={{display:'flex',gap:2,marginTop:6}}>
+                          {[1,2,3,4,5].map(star=>(
+                            <button key={star} onClick={()=>rateMeal(m.name,m.cuisine,star)}
+                              style={{background:'none',border:'none',cursor:'pointer',padding:'2px',
+                                fontSize:16,color:star<=(mealRatings[m.name]||0)?'#f5a623':'#ddd',
+                                lineHeight:1,transition:'color .1s'}}>★</button>
+                          ))}
+                          {mealRatings[m.name] && (
+                            <span style={{fontSize:10,color:'var(--t3)',alignSelf:'center',marginLeft:2}}>
+                              {mealRatings[m.name]>=4?'❤️ Loved it':mealRatings[m.name]<=2?'👎 Not for me':'👍 OK'}
+                            </span>
+                          )}
+                        </div>
                         <button onClick={()=>toggleCooked(`${day.day}_${slot}`)}
                           style={{padding:'8px 12px',fontSize:11,fontWeight:600,
                             background:cookedMeals.has(`${day.day}_${slot}`)? 'var(--gl)':'var(--bg2)',
