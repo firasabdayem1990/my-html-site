@@ -57,6 +57,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
   })
   const [searching, setSearching] = useState(false)
   const [addedToShopping, setAddedToShopping] = useState(false)
+  const [scaleFactors, setScaleFactors] = useState({}) // rid -> scale multiplier
   const [searchErr, setSearchErr] = useState('')
   const [community, setCommunity] = useState([])
   const [commLoaded, setCommLoaded] = useState(false)
@@ -470,7 +471,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
     )
   }
 
-  const RecipeBody = ({r}) => r ? (
+  const RecipeBody = ({r, rid}) => r ? (
     <div style={{padding:'0 16px 16px'}}>
       {/* HISTORY */}
       {r.history && (
@@ -484,19 +485,30 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
           </div>
         </div>
       )}
-      {/* SERVINGS BANNER */}
+      {/* SERVINGS BANNER + SCALING */}
       <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',
         background:'var(--bg2)',borderRadius:'var(--r)',marginBottom:10,
-        border:'1px solid var(--bdr)'}}>
+        border:'1px solid var(--bdr)',flexWrap:'wrap'}}>
         <span style={{fontSize:16}}>👥</span>
-        <div>
+        <div style={{flex:1}}>
           <div style={{fontSize:12,fontWeight:700,color:'var(--t)'}}>
             Serves {parseInt(prefs.adults)||2} adult{(parseInt(prefs.adults)||2)!==1?'s':''}
             {parseInt(prefs.kids)>0?` + ${parseInt(prefs.kids)} kid${parseInt(prefs.kids)!==1?'s':''} (½ portions)`:''}
           </div>
-          <div style={{fontSize:11,color:'var(--t3)'}}>
-            Based on your household in Setup tab
-          </div>
+          <div style={{fontSize:11,color:'var(--t3)'}}>Based on your household in Setup tab</div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+          <span style={{fontSize:11,color:'var(--t3)'}}>Scale:</span>
+          {[0.5,1,2,3,4].map(s=>(
+            <button key={s} onClick={()=>setScaleFactors(p=>({...p,[rid||'search']:s}))}
+              style={{padding:'3px 8px',fontSize:11,fontWeight:600,
+                background:(scaleFactors[rid||'search']||1)===s?'var(--g)':'var(--bg)',
+                color:(scaleFactors[rid||'search']||1)===s?'#fff':'var(--t2)',
+                border:'1px solid var(--bdr2)',borderRadius:6,cursor:'pointer',
+                fontFamily:'var(--sans)'}}>
+              {s===0.5?'½':s+'×'}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -517,7 +529,18 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
         </div>
         <div className="recipe-ingredients">
           {r.ingredients.map((ing,i)=>{
-            const hasBoth = ing.cookQty && ing.shopQty
+            const scale = scaleFactors[rid||'search'] || 1
+            const scaleQty = (qty) => {
+              if (!qty || scale === 1) return qty
+              const match = qty.match(/^([\d.\/]+)\s*(.*)$/)
+              if (!match) return qty
+              let num = match[1].includes('/') 
+                ? match[1].split('/').reduce((a,b)=>parseFloat(a)/parseFloat(b))
+                : parseFloat(match[1])
+              const scaled = Math.round(num * scale * 4) / 4
+              const unit = match[2]
+              return (scaled % 1 === 0 ? scaled : scaled.toFixed(2)) + (unit ? ' ' + unit : '')
+            }
             return (
               <div key={i} className="recipe-ing" style={{flexDirection:'column',alignItems:'flex-start',gap:2}}>
                 <div style={{display:'flex',alignItems:'center',gap:8,width:'100%'}}>
@@ -528,11 +551,11 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                 </div>
                 <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
                   <span style={{fontSize:11,padding:'2px 8px',background:'var(--gl)',borderRadius:99,color:'var(--gm)',fontWeight:500}}>
-                    🍳 {ing.cookQty||ing.qty||ing.qty||'—'}
+                    🍳 {scaleQty(ing.cookQty||ing.qty||'—')}
                   </span>
-                  {(ing.shopQty) && (
+                  {ing.shopQty && (
                     <span style={{fontSize:11,padding:'2px 8px',background:'var(--al)',borderRadius:99,color:'var(--am)',fontWeight:500}}>
-                      🛒 {ing.shopQty}
+                      🛒 {scaleQty(ing.shopQty)}
                     </span>
                   )}
                 </div>
@@ -629,7 +652,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
               </div>
               <div className="recipe-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
             </div>
-            {searchResultOpen && <RecipeBody r={searchResult}/>}
+            {searchResultOpen && <RecipeBody r={searchResult} rid='search'/>}
 
             {/* COMMUNITY VERSIONS OF THIS DISH */}
             {searchResultOpen && (() => {
@@ -796,7 +819,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                     <div style={{borderTop:'1px solid var(--bdr)'}}>
                       {loadingCard===rid
                         ? <div className="recipe-body-loading"><div className="spin"></div>Loading recipe…</div>
-                        : r ? <RecipeBody r={r}/>
+                        : r ? <RecipeBody r={r} rid={rid}/>
                         : <div style={{padding:'16px',fontSize:13,color:'var(--t2)'}}>Tap to load recipe details.</div>
                       }
                     </div>

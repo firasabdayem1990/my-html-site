@@ -20,6 +20,15 @@ export default function MainApp({ user, onSignOut }) {
   const state = useAppState(user)
 
   const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || null
+
+  // Request notification permission once
+  useState(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      setTimeout(() => {
+        Notification.requestPermission()
+      }, 3000)
+    }
+  })
   const userInitial = userName ? userName[0].toUpperCase() : null
 
   // Called from MealsTab "View recipe" button
