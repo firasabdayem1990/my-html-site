@@ -119,7 +119,26 @@ export default function MealsTab({ state, onViewRecipe, onRegenerate }) {
     }
   }
 
-  const toggleCooked = (key) => {
+  const toggleCooked = (key, mealName, day, slot) => {
+    const isCooked = cookedMeals.has(key)
+    if (!isCooked) {
+      // Marking as cooked — check if any pantry items were used
+      const pantry = state.pantry || []
+      if (pantry.length > 0 && mealName) {
+        const mealWords = mealName.toLowerCase().split(/\s+/)
+        const usedPantryItems = pantry.filter(p => {
+          const pName = p.name.toLowerCase()
+          return mealWords.some(w => w.length > 3 && (pName.includes(w) || w.includes(pName)))
+        })
+        if (usedPantryItems.length > 0) {
+          const itemNames = usedPantryItems.map(p => p.name).join(', ')
+          if (confirm(`Did you use these pantry items for "${mealName}"?\n\n${itemNames}\n\nTap OK to remove them from your pantry.`)) {
+            const usedIds = new Set(usedPantryItems.map(p => p.id))
+            state.updatePantry(pantry.filter(p => !usedIds.has(p.id)))
+          }
+        }
+      }
+    }
     setCookedMeals(prev => {
       const next = new Set(prev)
       next.has(key) ? next.delete(key) : next.add(key)
@@ -434,7 +453,7 @@ Return ONLY JSON: {"name":"","desc":"","cuisine":"","calories":0}`
                             </span>
                           )}
                         </div>
-                        <button onClick={()=>toggleCooked(`${day.day}_${slot}`)}
+                        <button onClick={()=>toggleCooked(`${day.day}_${slot}`, m.name, day.day, slot)}
                           style={{padding:'8px 12px',fontSize:11,fontWeight:600,
                             background:cookedMeals.has(`${day.day}_${slot}`)? 'var(--gl)':'var(--bg2)',
                             color:cookedMeals.has(`${day.day}_${slot}`)? 'var(--g)':'var(--t2)',
