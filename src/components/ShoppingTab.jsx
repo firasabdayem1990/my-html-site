@@ -24,56 +24,73 @@ export default function ShoppingTab({ state }) {
   // Smart pantry cross-reference — match shopping items against pantry in real-time
   const pantryNames = (state.pantry || []).map(p => p.name.toLowerCase().trim())
   
-  // Smart ingredient synonyms — maps variations to base ingredient
-  const INGREDIENT_SYNONYMS = {
-    'egg yolk': 'egg', 'egg white': 'egg', 'egg yolks': 'egg', 'egg whites': 'egg',
-    'eggs yolk': 'egg', 'yolk': 'egg', 'yolks': 'egg',
-    'chicken breast': 'chicken', 'chicken thigh': 'chicken', 'chicken legs': 'chicken',
-    'ground beef': 'beef', 'beef mince': 'beef', 'minced beef': 'beef',
-    'olive oil': 'oil', 'vegetable oil': 'oil', 'sunflower oil': 'oil',
-    'spring onion': 'onion', 'green onion': 'onion', 'shallot': 'onion',
-    'garlic clove': 'garlic', 'garlic cloves': 'garlic',
-    'lemon juice': 'lemon', 'lime juice': 'lime',
-    'heavy cream': 'cream', 'double cream': 'cream', 'sour cream': 'cream',
-    'all purpose flour': 'flour', 'plain flour': 'flour', 'bread flour': 'flour',
-    'cherry tomato': 'tomato', 'cherry tomatoes': 'tomato', 'grape tomato': 'tomato',
-    'baby spinach': 'spinach', 'frozen spinach': 'spinach',
-    'parmesan cheese': 'parmesan', 'parmigiano': 'parmesan',
-    'cheddar cheese': 'cheddar', 'mozzarella cheese': 'mozzarella',
-    'unsalted butter': 'butter', 'salted butter': 'butter',
-    'whole milk': 'milk', 'skim milk': 'milk', 'almond milk': 'milk',
-    'black pepper': 'pepper', 'white pepper': 'pepper', 'red pepper': 'pepper',
-    'sea salt': 'salt', 'kosher salt': 'salt', 'table salt': 'salt',
-    'basmati rice': 'rice', 'jasmine rice': 'rice', 'brown rice': 'rice',
-    'pasta': 'spaghetti', 'spaghetti': 'pasta', 'penne': 'pasta', 'fusilli': 'pasta',
-  }
+  // Smart ingredient matching — exact family groups only
+  // Each group = ingredients that are genuinely interchangeable
+  const INGREDIENT_FAMILIES = [
+    // Eggs — yolks and whites come from eggs
+    { base: 'egg', members: ['egg', 'eggs', 'egg yolk', 'egg yolks', 'egg white', 'egg whites', 'yolk', 'yolks'] },
+    // Chicken parts — all come from chicken
+    { base: 'chicken', members: ['chicken', 'chicken breast', 'chicken thigh', 'chicken thighs', 'chicken leg', 'chicken legs', 'chicken wings', 'chicken fillet'] },
+    // Beef
+    { base: 'beef', members: ['beef', 'ground beef', 'beef mince', 'minced beef', 'beef steak'] },
+    // Garlic
+    { base: 'garlic', members: ['garlic', 'garlic clove', 'garlic cloves', 'garlic bulb'] },
+    // Onion — NOT spring onion or shallot (different flavor)
+    { base: 'onion', members: ['onion', 'onions', 'yellow onion', 'white onion', 'red onion'] },
+    // Tomato — regular tomatoes only
+    { base: 'tomato', members: ['tomato', 'tomatoes', 'plum tomato', 'plum tomatoes', 'roma tomato', 'beefsteak tomato'] },
+    // Cherry tomato — separate product
+    { base: 'cherry tomato', members: ['cherry tomato', 'cherry tomatoes', 'grape tomato', 'grape tomatoes'] },
+    // Butter
+    { base: 'butter', members: ['butter', 'unsalted butter', 'salted butter'] },
+    // Milk
+    { base: 'milk', members: ['milk', 'whole milk', 'full fat milk', 'semi skimmed milk'] },
+    // Flour
+    { base: 'flour', members: ['flour', 'plain flour', 'all purpose flour', 'bread flour', 'wheat flour'] },
+    // Rice
+    { base: 'rice', members: ['rice', 'basmati rice', 'jasmine rice', 'brown rice', 'white rice', 'long grain rice'] },
+    // Salt — different from any other ingredient
+    { base: 'salt', members: ['salt', 'sea salt', 'kosher salt', 'table salt', 'rock salt'] },
+    // Black pepper — NOT bell pepper, NOT red pepper flakes
+    { base: 'black pepper', members: ['black pepper', 'ground black pepper', 'pepper', 'peppercorn', 'black peppercorn'] },
+    // Olive oil — NOT vegetable oil (different)
+    { base: 'olive oil', members: ['olive oil', 'extra virgin olive oil', 'virgin olive oil'] },
+    // Lemon
+    { base: 'lemon', members: ['lemon', 'lemons', 'lemon juice', 'lemon zest'] },
+    // Cream
+    { base: 'cream', members: ['cream', 'heavy cream', 'double cream', 'whipping cream', 'single cream'] },
+    // Pasta
+    { base: 'pasta', members: ['pasta', 'spaghetti', 'penne', 'fusilli', 'tagliatelle', 'linguine', 'fettuccine', 'rigatoni'] },
+    // Spinach
+    { base: 'spinach', members: ['spinach', 'baby spinach', 'frozen spinach'] },
+    // Parmesan
+    { base: 'parmesan', members: ['parmesan', 'parmigiano', 'parmigiano reggiano', 'parmesan cheese'] },
+  ]
 
-  const getBaseIngredient = (name) => {
+  const getIngredientFamily = (name) => {
     const lower = name.toLowerCase().trim()
-    // Check synonyms first
-    for (const [synonym, base] of Object.entries(INGREDIENT_SYNONYMS)) {
-      if (lower.includes(synonym)) return base
+    for (const family of INGREDIENT_FAMILIES) {
+      if (family.members.some(m => lower === m || lower.startsWith(m + ' ') || lower.endsWith(' ' + m) || lower.includes(' ' + m + ' '))) {
+        return family.base
+      }
     }
-    // Strip descriptors
+    // No family found — strip units and return cleaned name
     return lower
-      .replace(/\d+\s*(kg|g|ml|l|liter|litre|pack|can|bottle|bunch|piece|dozen|bag|box|jar|tube|roll|sheet|slice|head|clove|stalk|sprig|lb|oz|cup|tbsp|tsp)s?/gi, '')
-      .replace(/\b(large|small|medium|fresh|dried|frozen|canned|organic|whole|ground|chopped|sliced|diced|minced|boneless|skinless|extra|virgin|pure|raw|cooked|boiled|roasted)\b/gi, '')
+      .replace(/\d+\s*(kg|g|ml|l|pack|can|bottle|bunch|piece|dozen|bag|box|jar|clove|cloves|tbsp|tsp|cup|oz|lb)s?/gi, '')
+      .replace(/\b(large|small|medium|fresh|dried|frozen|canned|organic|whole|ground|chopped|sliced|diced|minced|boneless|skinless|ripe)\b/gi, '')
       .replace(/\s+/g, ' ')
       .trim()
   }
 
   const getPantryMatch = (itemName) => {
     if (!itemName || !pantryNames.length) return null
-    const base = getBaseIngredient(itemName)
-    
+    const family = getIngredientFamily(itemName)
+
     const pantryItem = (state.pantry || []).find(p => {
-      const pn = p.name.toLowerCase().trim()
-      const basePn = getBaseIngredient(pn)
-      
-      return pn.includes(base) || base.includes(pn) ||
-        basePn.includes(base) || base.includes(basePn) ||
-        base.replace(/s$/, '') === basePn.replace(/s$/, '') ||
-        pn.replace(/s$/, '') === base.replace(/s$/, '')
+      const pantryFamily = getIngredientFamily(p.name)
+      return family === pantryFamily ||
+        family === p.name.toLowerCase().trim() ||
+        p.name.toLowerCase().trim() === family
     })
     return pantryItem || null
   }
@@ -446,11 +463,11 @@ export default function ShoppingTab({ state }) {
                   {(dish.ingredients || []).map((ing, i) => {
                     const k = 'extra_' + di + '_' + i
                     const isc = checked.has(k)
-                    // Real-time pantry check
+                    // Real-time pantry check using synonym matching
                     const inPantry = ing.inPantry || !!getPantryMatch(ing.name||'')
-                    const isAssumed = !inPantry && (ing.qty === '✓ Assume available' || ing.shopQty === '✓ Assume available')
+                    const isAssumed = !inPantry && (ing.qty === '✓ Assume available' || ing.shopQty === '✓ Assume available' || (ing.qty||'').includes('Assume'))
 
-                    // Always show all ingredients
+                    // Always show all ingredients including pantry ones
                     if (inPantry) return (
                       <div key={k} style={{display:'flex',alignItems:'center',gap:8,padding:'9px 12px',
                         background:'#f0faf0',borderRadius:'var(--r)',marginBottom:4,
