@@ -530,14 +530,14 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
         </div>
         <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
           <span style={{fontSize:11,color:'var(--t3)'}}>Scale:</span>
-          {[0.5,1,2,3,4].map(s=>(
+          {[1,2,3,4,5,6,7,8].map(s=>(
             <button key={s} onClick={()=>setScaleFactors(p=>({...p,[rid||'search']:s}))}
               style={{padding:'3px 8px',fontSize:11,fontWeight:600,
                 background:(scaleFactors[rid||'search']||1)===s?'var(--g)':'var(--bg)',
                 color:(scaleFactors[rid||'search']||1)===s?'#fff':'var(--t2)',
                 border:'1px solid var(--bdr2)',borderRadius:6,cursor:'pointer',
                 fontFamily:'var(--sans)'}}>
-              {s===0.5?'½':s+'×'}
+              {s+'×'}
             </button>
           ))}
         </div>
