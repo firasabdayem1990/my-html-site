@@ -221,11 +221,12 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
       ingredients: searchResult.ingredients
         .map(ing => {
           // Real-time pantry check
+          const SYNS = {'egg yolk':'egg','egg yolks':'egg','yolk':'egg','yolks':'egg','chicken breast':'chicken','ground beef':'beef','olive oil':'oil','garlic clove':'garlic','garlic cloves':'garlic','cherry tomato':'tomato','black pepper':'pepper','sea salt':'salt','unsalted butter':'butter','whole milk':'milk','basmati rice':'rice'}
+          const getB = (n) => { const l=n.toLowerCase().trim(); for(const [k,v] of Object.entries(SYNS)){if(l.includes(k))return v} return l }
           const isInPantry = ing.inPantry || (state.pantry||[]).some(p => {
-            const pn = p.name.toLowerCase().trim()
-            const ingn = ing.name.toLowerCase().trim()
-            return ingn.includes(pn) || pn.includes(ingn) ||
-              ingn.replace(/s$/,'') === pn.replace(/s$/,'')
+            const pn = getB(p.name)
+            const ingn = getB(ing.name||'')
+            return ingn.includes(pn) || pn.includes(ingn) || ingn.replace(/s$/,'')===pn.replace(/s$/,'')
           })
           return { ...ing, inPantry: isInPantry }
         })
