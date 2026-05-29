@@ -557,7 +557,7 @@ export async function fetchRecipe({ name, cuisine, desc, people, adults, kids, d
     + ` For each ingredient:`
     + ` cookQty = EXACT cooking amount: "2 eggs", "1 tbsp olive oil", "3 garlic cloves".`
     + ` shopQty = MINIMUM store unit needed: if need 2 eggs → "1 pack (6 eggs)", if need 1 tbsp → "1 small bottle", if need 200g → "1 bag (500g)". Buy minimum necessary.`
-    + ` inPantry = true ONLY if ingredient name closely matches something in this exact list: [${pantryList || 'empty'}]. Do NOT assume salt, pepper, oil or any staple is available unless explicitly in the list.`
+    + ` inPantry = true ONLY if ingredient EXACTLY matches this pantry list: [${pantryList || 'empty'}]. NEVER assume ANY ingredient — not salt, not pepper, not water, not oil — is available. If not in the list, inPantry must be false.`
 
   const raw = await callAPI('recipe', {
     model: 'claude-sonnet-4-5-20250929',
@@ -588,7 +588,7 @@ export async function searchRecipe({ query, people, adults, kids, diet, restrict
     + ` For each ingredient:`
     + ` cookQty = EXACT amount needed for cooking: "2 eggs", "1 tbsp olive oil", "200g flour"`
     + ` shopQty = MINIMUM realistic store unit to buy: if need 2 eggs → "1 pack (6 eggs)", if need 1 tbsp olive oil → "1 small bottle (250ml)", if need 200g flour → "1 bag (500g)". Never buy more than necessary.`
-    + ` inPantry = true ONLY if the ingredient name closely matches something in this exact pantry list: [${pantryList || 'empty'}]. Do NOT assume common staples are in pantry. Only mark inPantry:true if clearly in the list above.`
+    + ` inPantry = true ONLY if ingredient EXACTLY matches this pantry list: [${pantryList || 'empty'}]. NEVER assume ANY ingredient is available — not salt, not pepper, not oil, not water, NOTHING. If pantry list is empty, ALL inPantry values must be false. Only set inPantry:true if the ingredient name clearly appears in the pantry list provided.`
     + ` IMPORTANT: Be smart about quantities — if recipe needs 2 eggs, shopQty is "1 pack (6)" not "1 dozen". If needs 1 tbsp oil, shopQty is "1 bottle" not "5 liters".`
 
   const raw = await callAPI('recipe', {
