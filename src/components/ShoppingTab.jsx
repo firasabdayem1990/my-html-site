@@ -18,6 +18,40 @@ export default function ShoppingTab({ state }) {
   const { plan, checked, updateChecked, prefs, isDemo, extraItems, updateExtraItems } = state
   const [extraOpen, setExtraOpen] = useState(true)
   const [storeView, setStoreView] = useState(false)
+  const [pantryConfirmed, setPantryConfirmed] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('pantry_confirmed') || '{}') } catch(e) { return {} }
+  })
+  const [pendingConfirm, setPendingConfirm] = useState([]) // items waiting for user confirmation
+
+  const savePantryConfirm = (key, value) => {
+    const updated = {...pantryConfirmed, [key]: value}
+    setPantryConfirmed(updated)
+    try { localStorage.setItem('pantry_confirmed', JSON.stringify(updated)) } catch(e) {}
+  }
+
+  // Check if ingredient is confirmed match, rejected, or pending
+  const getPantryStatus = (ingName) => {
+    const exact = getPantryMatch(ingName)
+    if (!exact) return { status: 'none', pantryItem: null }
+    
+    const ingLower = ingName.toLowerCase().trim()
+    const pantryLower = exact.name.toLowerCase().trim()
+    
+    // Exact or very close match — auto confirm
+    if (ingLower === pantryLower || 
+        ingLower === pantryLower + 's' || 
+        pantryLower === ingLower + 's') {
+      return { status: 'confirmed', pantryItem: exact }
+    }
+    
+    // Check if user already answered
+    const key = `${ingLower}|${pantryLower}`
+    if (pantryConfirmed[key] === true) return { status: 'confirmed', pantryItem: exact }
+    if (pantryConfirmed[key] === false) return { status: 'rejected', pantryItem: null }
+    
+    // Needs confirmation
+    return { status: 'pending', pantryItem: exact, key }
+  }
 
   const cur = plan?._cur || prefs.currency || '$'
   
@@ -287,6 +321,41 @@ export default function ShoppingTab({ state }) {
 
         {plan && <div className="legend"><div className="mdot"></div>Green dot = used in multiple meals</div>}
 
+        {/* PANTRY CONFIRMATION PROMPTS */}
+        {pendingConfirm.length > 0 && (
+          <div style={{marginBottom:14,padding:'12px 14px',background:'#fff9e6',
+            border:'1px solid #ffe066',borderRadius:'var(--r)',borderLeft:'3px solid #f0a000'}}>
+            <div style={{fontSize:12,fontWeight:700,color:'#8a6000',marginBottom:10}}>
+              🤔 Are these the same thing?
+            </div>
+            {pendingConfirm.map((item, i) => (
+              <div key={i} style={{marginBottom:8,padding:'8px 10px',background:'#fff',
+                borderRadius:'var(--r)',border:'1px solid #ffe066'}}>
+                <div style={{fontSize:12,color:'var(--t)',marginBottom:6}}>
+                  Recipe needs: <strong>{item.ingName}</strong> — Your pantry has: <strong>{item.pantryName}</strong>
+                </div>
+                <div style={{display:'flex',gap:8}}>
+                  <button onClick={()=>{
+                    savePantryConfirm(item.key, true)
+                    setPendingConfirm(p => p.filter((_,j) => j !== i))
+                  }} style={{padding:'5px 14px',background:'var(--g)',color:'#fff',border:'none',
+                    borderRadius:99,cursor:'pointer',fontFamily:'var(--sans)',fontSize:11,fontWeight:600}}>
+                    ✅ Yes, same thing
+                  </button>
+                  <button onClick={()=>{
+                    savePantryConfirm(item.key, false)
+                    setPendingConfirm(p => p.filter((_,j) => j !== i))
+                  }} style={{padding:'5px 14px',background:'var(--bg2)',color:'var(--t2)',
+                    border:'1px solid var(--bdr)',borderRadius:99,cursor:'pointer',
+                    fontFamily:'var(--sans)',fontSize:11}}>
+                    ❌ No, I need to buy
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* PANTRY QUANTITY CHECK */}
         {(state.pantry||[]).length > 0 && list.length > 0 && (()=>{
           const warnings = []
@@ -464,8 +533,23 @@ export default function ShoppingTab({ state }) {
                     const k = 'extra_' + di + '_' + i
                     const isc = checked.has(k)
                     // Real-time pantry check using synonym matching
-                    const inPantry = ing.inPantry || !!getPantryMatch(ing.name||'')
+                    const pantryStatus = getPantryStatus(ing.name||'')
+                    const inPantry = ing.inPantry || pantryStatus.status === 'confirmed'
                     const isAssumed = !inPantry && (ing.qty === '✓ Assume available' || ing.shopQty === '✓ Assume available' || (ing.qty||'').includes('Assume'))
+                    // Queue pending confirmation if not already asked
+                    if (pantryStatus.status === 'pending') {
+                      const already = pendingConfirm.find(p => p.key === pantryStatus.key)
+                      if (!already) {
+                        setTimeout(() => setPendingConfirm(prev => {
+                          if (prev.find(p => p.key === pantryStatus.key)) return prev
+                          return [...prev, {
+                            ingName: ing.name,
+                            pantryName: pantryStatus.pantryItem?.name,
+                            key: pantryStatus.key
+                          }]
+                        }), 0)
+                      }
+                    }
 
                     // Always show all ingredients including pantry ones
                     if (inPantry) return (
