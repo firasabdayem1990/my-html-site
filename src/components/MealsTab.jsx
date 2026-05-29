@@ -98,7 +98,7 @@ export default function MealsTab({ state, onViewRecipe, onRegenerate }) {
   const swapMeal = async (day, slot, currentMeal) => {
     setSwapping({day, slot})
     try {
-      const token = (await (await import('../supabase.js').catch(()=>({supabase:null}))).supabase?.auth?.getSession())?.data?.session?.access_token
+      const token = (await (await import('./supabase.js').catch(()=>({supabase:null}))).supabase?.auth?.getSession())?.data?.session?.access_token
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: {'Content-Type':'application/json', ...(token?{'Authorization':`Bearer ${token}`}:{})},
