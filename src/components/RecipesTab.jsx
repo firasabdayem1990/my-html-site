@@ -221,12 +221,31 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
       ingredients: searchResult.ingredients
         .map(ing => {
           // Real-time pantry check
-          const SYNS = {'egg yolk':'egg','egg yolks':'egg','yolk':'egg','yolks':'egg','chicken breast':'chicken','ground beef':'beef','olive oil':'oil','garlic clove':'garlic','garlic cloves':'garlic','cherry tomato':'tomato','black pepper':'pepper','sea salt':'salt','unsalted butter':'butter','whole milk':'milk','basmati rice':'rice'}
-          const getB = (n) => { const l=n.toLowerCase().trim(); for(const [k,v] of Object.entries(SYNS)){if(l.includes(k))return v} return l }
+          const FAM2 = [
+            {base:'egg',members:['egg','eggs','egg yolk','egg yolks','egg white','egg whites','yolk','yolks']},
+            {base:'chicken',members:['chicken','chicken breast','chicken thigh','chicken thighs','chicken leg','chicken fillet']},
+            {base:'beef',members:['beef','ground beef','beef mince','minced beef']},
+            {base:'garlic',members:['garlic','garlic clove','garlic cloves','garlic bulb']},
+            {base:'onion',members:['onion','onions','yellow onion','white onion','red onion']},
+            {base:'tomato',members:['tomato','tomatoes','plum tomato','roma tomato']},
+            {base:'cherry tomato',members:['cherry tomato','cherry tomatoes','grape tomato','grape tomatoes']},
+            {base:'butter',members:['butter','unsalted butter','salted butter']},
+            {base:'milk',members:['milk','whole milk','full fat milk']},
+            {base:'flour',members:['flour','plain flour','all purpose flour','bread flour']},
+            {base:'rice',members:['rice','basmati rice','jasmine rice','brown rice','white rice']},
+            {base:'salt',members:['salt','sea salt','kosher salt','table salt']},
+            {base:'black pepper',members:['black pepper','ground black pepper','pepper','peppercorn']},
+            {base:'olive oil',members:['olive oil','extra virgin olive oil']},
+            {base:'lemon',members:['lemon','lemons','lemon juice','lemon zest']},
+            {base:'cream',members:['cream','heavy cream','double cream','whipping cream']},
+            {base:'pasta',members:['pasta','spaghetti','penne','fusilli','tagliatelle','linguine']},
+            {base:'spinach',members:['spinach','baby spinach','frozen spinach']},
+            {base:'parmesan',members:['parmesan','parmigiano','parmigiano reggiano']},
+          ]
+          const getF = (n) => { const l=(n||'').toLowerCase().trim(); for(const f of FAM2){if(f.members.some(m=>l===m||l.startsWith(m+' ')||l.endsWith(' '+m)||l.includes(' '+m+' ')))return f.base} return l }
           const isInPantry = ing.inPantry || (state.pantry||[]).some(p => {
-            const pn = getB(p.name)
-            const ingn = getB(ing.name||'')
-            return ingn.includes(pn) || pn.includes(ingn) || ingn.replace(/s$/,'')===pn.replace(/s$/,'')
+            const pf = getF(p.name), ingf = getF(ing.name||'')
+            return pf === ingf && pf !== ''
           })
           return { ...ing, inPantry: isInPantry }
         })
