@@ -230,7 +230,6 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
           })
           return { ...ing, inPantry: isInPantry }
         })
-        .filter(ing => !ing.inPantry)
         .map(ing => ({
           name: ing.name,
           qty: ing.shopQty || ing.qty || '',
