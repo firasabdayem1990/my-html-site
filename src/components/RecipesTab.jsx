@@ -219,7 +219,16 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
       cuisine: searchResult.cuisine || '',
       pricePerServing: searchResult.pricePerServing || 0,
       ingredients: searchResult.ingredients
-        .filter(ing => !ing.inPantry)
+        .filter(ing => {
+          if (ing.inPantry) return false
+          // Real-time pantry check
+          return !(state.pantry||[]).some(p => {
+            const pn = p.name.toLowerCase().trim()
+            const ingn = ing.name.toLowerCase().trim()
+            return ingn.includes(pn) || pn.includes(ingn) ||
+              ingn.replace(/s$/,'') === pn.replace(/s$/,'')
+          })
+        })
         .map(ing => ({
           name: ing.name,
           qty: ing.shopQty || ing.qty || '',
@@ -555,7 +564,12 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                   <span style={{fontSize:11,padding:'2px 8px',background:'var(--gl)',borderRadius:99,color:'var(--gm)',fontWeight:500}}>
                     🍳 {scaleQty(ing.cookQty||ing.qty||'—')}
                   </span>
-                  {ing.inPantry ? (
+                  {(ing.inPantry || (state.pantry||[]).some(p => {
+                    const pn = p.name.toLowerCase().trim()
+                    const ingn = ing.name.toLowerCase().trim()
+                    return ingn.includes(pn) || pn.includes(ingn) ||
+                      ingn.replace(/s$/,'') === pn.replace(/s$/,'')
+                  })) ? (
                     <span style={{fontSize:11,padding:'2px 8px',background:'#f0faf0',borderRadius:99,color:'var(--g)',fontWeight:600,border:'1px solid rgba(31,78,26,.2)'}}>
                       ✅ In pantry
                     </span>
