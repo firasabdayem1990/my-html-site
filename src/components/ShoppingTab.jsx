@@ -24,27 +24,56 @@ export default function ShoppingTab({ state }) {
   // Smart pantry cross-reference — match shopping items against pantry in real-time
   const pantryNames = (state.pantry || []).map(p => p.name.toLowerCase().trim())
   
-  const getPantryMatch = (itemName) => {
-    if (!itemName || !pantryNames.length) return null
-    const name = itemName.toLowerCase().trim()
-    // Remove common quantity words to get core ingredient name
-    const coreName = name
+  // Smart ingredient synonyms — maps variations to base ingredient
+  const INGREDIENT_SYNONYMS = {
+    'egg yolk': 'egg', 'egg white': 'egg', 'egg yolks': 'egg', 'egg whites': 'egg',
+    'eggs yolk': 'egg', 'yolk': 'egg', 'yolks': 'egg',
+    'chicken breast': 'chicken', 'chicken thigh': 'chicken', 'chicken legs': 'chicken',
+    'ground beef': 'beef', 'beef mince': 'beef', 'minced beef': 'beef',
+    'olive oil': 'oil', 'vegetable oil': 'oil', 'sunflower oil': 'oil',
+    'spring onion': 'onion', 'green onion': 'onion', 'shallot': 'onion',
+    'garlic clove': 'garlic', 'garlic cloves': 'garlic',
+    'lemon juice': 'lemon', 'lime juice': 'lime',
+    'heavy cream': 'cream', 'double cream': 'cream', 'sour cream': 'cream',
+    'all purpose flour': 'flour', 'plain flour': 'flour', 'bread flour': 'flour',
+    'cherry tomato': 'tomato', 'cherry tomatoes': 'tomato', 'grape tomato': 'tomato',
+    'baby spinach': 'spinach', 'frozen spinach': 'spinach',
+    'parmesan cheese': 'parmesan', 'parmigiano': 'parmesan',
+    'cheddar cheese': 'cheddar', 'mozzarella cheese': 'mozzarella',
+    'unsalted butter': 'butter', 'salted butter': 'butter',
+    'whole milk': 'milk', 'skim milk': 'milk', 'almond milk': 'milk',
+    'black pepper': 'pepper', 'white pepper': 'pepper', 'red pepper': 'pepper',
+    'sea salt': 'salt', 'kosher salt': 'salt', 'table salt': 'salt',
+    'basmati rice': 'rice', 'jasmine rice': 'rice', 'brown rice': 'rice',
+    'pasta': 'spaghetti', 'spaghetti': 'pasta', 'penne': 'pasta', 'fusilli': 'pasta',
+  }
+
+  const getBaseIngredient = (name) => {
+    const lower = name.toLowerCase().trim()
+    // Check synonyms first
+    for (const [synonym, base] of Object.entries(INGREDIENT_SYNONYMS)) {
+      if (lower.includes(synonym)) return base
+    }
+    // Strip descriptors
+    return lower
       .replace(/\d+\s*(kg|g|ml|l|liter|litre|pack|can|bottle|bunch|piece|dozen|bag|box|jar|tube|roll|sheet|slice|head|clove|stalk|sprig|lb|oz|cup|tbsp|tsp)s?/gi, '')
-      .replace(/\b(large|small|medium|fresh|dried|frozen|canned|organic|whole|ground|chopped|sliced|diced|minced)\b/gi, '')
+      .replace(/\b(large|small|medium|fresh|dried|frozen|canned|organic|whole|ground|chopped|sliced|diced|minced|boneless|skinless|extra|virgin|pure|raw|cooked|boiled|roasted)\b/gi, '')
       .replace(/\s+/g, ' ')
       .trim()
+  }
 
+  const getPantryMatch = (itemName) => {
+    if (!itemName || !pantryNames.length) return null
+    const base = getBaseIngredient(itemName)
+    
     const pantryItem = (state.pantry || []).find(p => {
       const pn = p.name.toLowerCase().trim()
-      const corePn = pn
-        .replace(/\d+\s*(kg|g|ml|l|pack|can|bottle|bunch|piece|dozen|bag|box|jar)s?/gi, '')
-        .trim()
-
-      return name.includes(pn) || pn.includes(name) ||
-        coreName.includes(pn) || pn.includes(coreName) ||
-        coreName.includes(corePn) || corePn.includes(coreName) ||
-        name.replace(/s$/, '') === pn.replace(/s$/, '') ||
-        coreName.replace(/s$/, '') === corePn.replace(/s$/, '')
+      const basePn = getBaseIngredient(pn)
+      
+      return pn.includes(base) || base.includes(pn) ||
+        basePn.includes(base) || base.includes(basePn) ||
+        base.replace(/s$/, '') === basePn.replace(/s$/, '') ||
+        pn.replace(/s$/, '') === base.replace(/s$/, '')
     })
     return pantryItem || null
   }
@@ -418,12 +447,7 @@ export default function ShoppingTab({ state }) {
                     const k = 'extra_' + di + '_' + i
                     const isc = checked.has(k)
                     // Real-time pantry check
-                    const inPantry = ing.inPantry || (state.pantry||[]).some(p => {
-                      const pn = p.name.toLowerCase().trim()
-                      const ingn = (ing.name||'').toLowerCase().trim()
-                      return ingn.includes(pn) || pn.includes(ingn) ||
-                        ingn.replace(/s$/,'') === pn.replace(/s$/,'')
-                    })
+                    const inPantry = ing.inPantry || !!getPantryMatch(ing.name||'')
                     const isAssumed = !inPantry && (ing.qty === '✓ Assume available' || ing.shopQty === '✓ Assume available')
 
                     // Always show all ingredients
