@@ -424,21 +424,30 @@ export default function ShoppingTab({ state }) {
                       return ingn.includes(pn) || pn.includes(ingn) ||
                         ingn.replace(/s$/,'') === pn.replace(/s$/,'')
                     })
+                    const isAssumed = !inPantry && (ing.qty === '✓ Assume available' || ing.shopQty === '✓ Assume available')
+
+                    // Always show all ingredients
                     if (inPantry) return (
-                      <div key={k} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',
-                        background:'#f8fef8',borderRadius:'var(--r)',marginBottom:2}}>
-                        <span style={{fontSize:13}}>✅</span>
-                        <span style={{fontSize:13,color:'var(--t)',flex:1,textDecoration:'line-through',opacity:.6}}>{ing.name}</span>
-                        <span style={{fontSize:10,padding:'2px 8px',background:'rgba(31,78,26,.1)',
-                          borderRadius:99,color:'var(--gm)',fontWeight:600}}>In pantry</span>
+                      <div key={k} style={{display:'flex',alignItems:'center',gap:8,padding:'9px 12px',
+                        background:'#f0faf0',borderRadius:'var(--r)',marginBottom:4,
+                        border:'1px solid rgba(31,78,26,.15)'}}>
+                        <span style={{fontSize:16}}>✅</span>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:13,color:'var(--t)',fontWeight:500}}>{ing.name}</div>
+                          <div style={{fontSize:11,color:'var(--gm)',marginTop:1}}>
+                            🍳 Need: {ing.cookQty||ing.qty||'—'} · 🏠 You have it in pantry — no need to buy!
+                          </div>
+                        </div>
+                        <span style={{fontSize:10,padding:'3px 9px',background:'rgba(31,78,26,.12)',
+                          borderRadius:99,color:'var(--g)',fontWeight:700,flexShrink:0}}>In pantry</span>
                       </div>
                     )
-                    // Skip "assume available" items
-                    if (ing.qty === '✓ Assume available' || ing.shopQty === '✓ Assume available') return (
+                    if (isAssumed) return (
                       <div key={k} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',
-                        background:'#f8fef8',borderRadius:'var(--r)',marginBottom:2,opacity:.5}}>
-                        <span style={{fontSize:13}}>✅</span>
-                        <span style={{fontSize:13,color:'var(--t)',flex:1,textDecoration:'line-through'}}>{ing.name}</span>
+                        background:'var(--bg2)',borderRadius:'var(--r)',marginBottom:4,opacity:.7,
+                        border:'1px solid var(--bdr)'}}>
+                        <span style={{fontSize:14}}>🏠</span>
+                        <span style={{fontSize:13,color:'var(--t2)',flex:1}}>{ing.name}</span>
                         <span style={{fontSize:10,color:'var(--t3)'}}>assumed available</span>
                       </div>
                     )
