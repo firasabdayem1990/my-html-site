@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { savePlan, loadPlan, savePantry, loadPantry, savePrefs, loadPrefs, saveChecked, loadChecked, saveUserMeta, loadUserMeta } from '../supabase.js'
+import { savePlan, loadPlan, savePantry, loadPantry, savePrefs, loadPrefs, saveChecked, loadChecked } from '../supabase.js'
 
 const LOCAL_KEY = {
   pantry: 'sb_pantry',
@@ -59,19 +59,6 @@ export function useAppState(user) {
             setPrefs(merged)
           }
           if (cloudChecked) setChecked(cloudChecked)
-
-          // Load extras and search history
-          try {
-            const [cloudExtras, cloudHistory] = await Promise.all([
-              loadUserMeta(user.id, 'extra_items').catch(() => null),
-              loadUserMeta(user.id, 'search_history').catch(() => null)
-            ])
-            if (cloudExtras?.length) setExtraItems(cloudExtras)
-            if (cloudHistory?.length) {
-              try { localStorage.setItem('sb_search_history', JSON.stringify(cloudHistory)) } catch(e) {}
-            }
-          } catch(e) {}
-
         } catch (e) {
           console.warn('Cloud load failed, using local', e)
           loadLocal()
@@ -162,8 +149,7 @@ export function useAppState(user) {
   const updateExtraItems = useCallback((items) => {
     setExtraItems(items)
     try { localStorage.setItem('sb_extra_items', JSON.stringify(items)) } catch(e) {}
-    if (user) saveUserMeta(user.id, 'extra_items', items).catch(() => {})
-  }, [user])
+  }, [])
 
   const clearPlan = useCallback(() => {
     setPlan(null)
