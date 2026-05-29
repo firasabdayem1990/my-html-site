@@ -584,20 +584,53 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                   <span style={{fontSize:11,padding:'2px 8px',background:'var(--gl)',borderRadius:99,color:'var(--gm)',fontWeight:500}}>
                     🍳 {scaleQty(ing.cookQty||ing.qty||'—')}
                   </span>
-                  {(ing.inPantry || (state.pantry||[]).some(p => {
-                    const pn = p.name.toLowerCase().trim()
-                    const ingn = ing.name.toLowerCase().trim()
-                    return ingn.includes(pn) || pn.includes(ingn) ||
-                      ingn.replace(/s$/,'') === pn.replace(/s$/,'')
-                  })) ? (
-                    <span style={{fontSize:11,padding:'2px 8px',background:'#f0faf0',borderRadius:99,color:'var(--g)',fontWeight:600,border:'1px solid rgba(31,78,26,.2)'}}>
-                      ✅ In pantry
-                    </span>
-                  ) : ing.shopQty ? (
-                    <span style={{fontSize:11,padding:'2px 8px',background:'var(--al)',borderRadius:99,color:'var(--am)',fontWeight:500}}>
-                      🛒 {scaleQty(ing.shopQty)}
-                    </span>
-                  ) : null}
+                  {(()=>{
+                    const pn = (n) => n.toLowerCase().trim()
+                    const ingn = pn(ing.name||'')
+                    const exactM = (state.pantry||[]).some(p => {
+                      const p2 = pn(p.name)
+                      return p2===ingn || p2===ingn+'s' || ingn===p2+'s'
+                    })
+                    const familyM = !exactM && (state.pantry||[]).some(p => {
+                      const FAM3 = [
+                        {base:'egg',m:['egg','eggs','egg yolk','egg yolks','egg white','egg whites','yolk','yolks']},
+                        {base:'chicken',m:['chicken','chicken breast','chicken thigh','chicken thighs','chicken fillet']},
+                        {base:'garlic',m:['garlic','garlic clove','garlic cloves']},
+                        {base:'onion',m:['onion','onions','yellow onion','red onion']},
+                        {base:'tomato',m:['tomato','tomatoes','plum tomato','roma tomato']},
+                        {base:'cherry tomato',m:['cherry tomato','cherry tomatoes','grape tomatoes']},
+                        {base:'butter',m:['butter','unsalted butter','salted butter']},
+                        {base:'salt',m:['salt','sea salt','kosher salt','table salt']},
+                        {base:'black pepper',m:['black pepper','ground black pepper','pepper','peppercorn']},
+                        {base:'olive oil',m:['olive oil','extra virgin olive oil']},
+                        {base:'rice',m:['rice','basmati rice','jasmine rice','brown rice']},
+                        {base:'pasta',m:['pasta','spaghetti','penne','fusilli','tagliatelle']},
+                        {base:'spinach',m:['spinach','baby spinach']},
+                        {base:'cream',m:['cream','heavy cream','double cream']},
+                        {base:'flour',m:['flour','plain flour','all purpose flour']},
+                      ]
+                      const getF3 = (n) => { const l=pn(n); for(const f of FAM3){if(f.m.some(m=>l===m||l.startsWith(m+' ')||l.endsWith(' '+m)))return f.base} return l }
+                      return getF3(p.name)===getF3(ing.name||'') && getF3(p.name)!==''
+                    })
+                    const matched = ing.inPantry || exactM || familyM
+                    const uncertain = !ing.inPantry && !exactM && familyM
+                    if (matched) return (
+                      <span style={{fontSize:11,padding:'2px 8px',
+                        background:uncertain?'#fffbf0':'#f0faf0',
+                        borderRadius:99,
+                        color:uncertain?'#8a6000':'var(--g)',
+                        fontWeight:600,
+                        border:uncertain?'1px solid #ffe066':'1px solid rgba(31,78,26,.2)'}}>
+                        {uncertain?'🤔 Check pantry':'✅ In pantry'}
+                      </span>
+                    )
+                    if (!ing.shopQty) return null
+                    return (
+                      <span style={{fontSize:11,padding:'2px 8px',background:'var(--al)',borderRadius:99,color:'var(--am)',fontWeight:500}}>
+                        🛒 {scaleQty(ing.shopQty)}
+                      </span>
+                    )
+                  })()}
                 </div>
               </div>
             )
