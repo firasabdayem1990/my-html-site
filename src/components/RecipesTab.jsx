@@ -219,16 +219,17 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
       cuisine: searchResult.cuisine || '',
       pricePerServing: searchResult.pricePerServing || 0,
       ingredients: searchResult.ingredients
-        .filter(ing => {
-          if (ing.inPantry) return false
+        .map(ing => {
           // Real-time pantry check
-          return !(state.pantry||[]).some(p => {
+          const isInPantry = ing.inPantry || (state.pantry||[]).some(p => {
             const pn = p.name.toLowerCase().trim()
             const ingn = ing.name.toLowerCase().trim()
             return ingn.includes(pn) || pn.includes(ingn) ||
               ingn.replace(/s$/,'') === pn.replace(/s$/,'')
           })
+          return { ...ing, inPantry: isInPantry }
         })
+        .filter(ing => !ing.inPantry)
         .map(ing => ({
           name: ing.name,
           qty: ing.shopQty || ing.qty || '',
