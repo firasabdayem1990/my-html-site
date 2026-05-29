@@ -218,12 +218,14 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
       dishName: searchResult.dishName || searchQ,
       cuisine: searchResult.cuisine || '',
       pricePerServing: searchResult.pricePerServing || 0,
-      ingredients: searchResult.ingredients.map(ing => ({
-        name: ing.name,
-        qty: ing.shopQty || ing.qty || '',
-        cookQty: ing.cookQty || ing.qty || '',
-        estimatedCost: 0
-      }))
+      ingredients: searchResult.ingredients
+        .filter(ing => !ing.inPantry)
+        .map(ing => ({
+          name: ing.name,
+          qty: ing.shopQty || ing.qty || '',
+          cookQty: ing.cookQty || ing.qty || '',
+          estimatedCost: 0
+        }))
     }
     // Remove same dish if already added
     const filtered = (extraItems || []).filter(e => e.dishName !== newItems.dishName)
@@ -553,11 +555,15 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                   <span style={{fontSize:11,padding:'2px 8px',background:'var(--gl)',borderRadius:99,color:'var(--gm)',fontWeight:500}}>
                     🍳 {scaleQty(ing.cookQty||ing.qty||'—')}
                   </span>
-                  {ing.shopQty && (
+                  {ing.inPantry ? (
+                    <span style={{fontSize:11,padding:'2px 8px',background:'#f0faf0',borderRadius:99,color:'var(--g)',fontWeight:600,border:'1px solid rgba(31,78,26,.2)'}}>
+                      ✅ In pantry
+                    </span>
+                  ) : ing.shopQty ? (
                     <span style={{fontSize:11,padding:'2px 8px',background:'var(--al)',borderRadius:99,color:'var(--am)',fontWeight:500}}>
                       🛒 {scaleQty(ing.shopQty)}
                     </span>
-                  )}
+                  ) : null}
                 </div>
               </div>
             )
