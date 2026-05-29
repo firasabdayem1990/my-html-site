@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { generateMealPlan } from '../ai.js'
 import { loadMealPreferences } from '../supabase.js'
 
@@ -158,6 +158,26 @@ export default function SetupTab({ state, onPlanGenerated }) {
   const [cuisineSearch, setCuisineSearch] = useState('')
   const [calResult, setCalResult] = useState(null)
   const [calOpen, setCalOpen] = useState(false)
+  const [locationDetected, setLocationDetected] = useState(false)
+
+  // Auto-detect country from IP — only on very first load (no saved preference)
+  useEffect(() => {
+    if (locationDetected) return
+    const alreadySet = localStorage.getItem('sb_country_manually_set')
+    if (alreadySet) return // user manually changed it before — respect their choice
+    setLocationDetected(true)
+    fetch('https://ipapi.co/json/')
+      .then(r => r.json())
+      .then(data => {
+        if (data.country_name) {
+          updatePrefs({
+            country: data.country_name,
+            currency: data.currency || prefs.currency || '$'
+          })
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   // Adults + kids counts
   const adults = parseInt(prefs.adults) || 2
