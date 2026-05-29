@@ -557,7 +557,7 @@ export async function fetchRecipe({ name, cuisine, desc, people, adults, kids, d
     + ` For each ingredient:`
     + ` cookQty = EXACT cooking amount: "2 eggs", "1 tbsp olive oil", "3 garlic cloves".`
     + ` shopQty = MINIMUM store unit needed: if need 2 eggs → "1 pack (6 eggs)", if need 1 tbsp → "1 small bottle", if need 200g → "1 bag (500g)". Buy minimum necessary.`
-    + ` inPantry = true if ingredient exists in: [${pantryList || 'empty'}]. If true, shopQty = "✓ In pantry" and estimatedCost = 0.`
+    + ` inPantry = true ONLY if ingredient name closely matches something in this exact list: [${pantryList || 'empty'}]. Do NOT assume salt, pepper, oil or any staple is available unless explicitly in the list.`
 
   const raw = await callAPI('recipe', {
     model: 'claude-sonnet-4-5-20250929',
@@ -588,7 +588,7 @@ export async function searchRecipe({ query, people, adults, kids, diet, restrict
     + ` For each ingredient:`
     + ` cookQty = EXACT amount needed for cooking: "2 eggs", "1 tbsp olive oil", "200g flour"`
     + ` shopQty = MINIMUM realistic store unit to buy: if need 2 eggs → "1 pack (6 eggs)", if need 1 tbsp olive oil → "1 small bottle (250ml)", if need 200g flour → "1 bag (500g)". Never buy more than necessary.`
-    + ` inPantry = true if this ingredient exists in user pantry: [${pantryList || 'empty'}]. If inPantry is true, shopQty = "✓ In pantry" and cost = 0.`
+    + ` inPantry = true ONLY if the ingredient name closely matches something in this exact pantry list: [${pantryList || 'empty'}]. Do NOT assume common staples are in pantry. Only mark inPantry:true if clearly in the list above.`
     + ` IMPORTANT: Be smart about quantities — if recipe needs 2 eggs, shopQty is "1 pack (6)" not "1 dozen". If needs 1 tbsp oil, shopQty is "1 bottle" not "5 liters".`
 
   const raw = await callAPI('recipe', {
