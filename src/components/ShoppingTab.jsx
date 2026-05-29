@@ -27,11 +27,24 @@ export default function ShoppingTab({ state }) {
   const getPantryMatch = (itemName) => {
     if (!itemName || !pantryNames.length) return null
     const name = itemName.toLowerCase().trim()
+    // Remove common quantity words to get core ingredient name
+    const coreName = name
+      .replace(/\d+\s*(kg|g|ml|l|liter|litre|pack|can|bottle|bunch|piece|dozen|bag|box|jar|tube|roll|sheet|slice|head|clove|stalk|sprig|lb|oz|cup|tbsp|tsp)s?/gi, '')
+      .replace(/\b(large|small|medium|fresh|dried|frozen|canned|organic|whole|ground|chopped|sliced|diced|minced)\b/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+
     const pantryItem = (state.pantry || []).find(p => {
       const pn = p.name.toLowerCase().trim()
+      const corePn = pn
+        .replace(/\d+\s*(kg|g|ml|l|pack|can|bottle|bunch|piece|dozen|bag|box|jar)s?/gi, '')
+        .trim()
+
       return name.includes(pn) || pn.includes(name) ||
+        coreName.includes(pn) || pn.includes(coreName) ||
+        coreName.includes(corePn) || corePn.includes(coreName) ||
         name.replace(/s$/, '') === pn.replace(/s$/, '') ||
-        pn.replace(/s$/, '') === name.replace(/s$/, '')
+        coreName.replace(/s$/, '') === corePn.replace(/s$/, '')
     })
     return pantryItem || null
   }
@@ -314,16 +327,45 @@ export default function ShoppingTab({ state }) {
                   <div style={{fontSize:11,color:'var(--gm)'}}>No need to buy these — use what you have</div>
                 </div>
               </div>
-              {pantryItems.map((item, i) => (
-                <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',
-                  background:'#f8fef8',borderRadius:'var(--r)',border:'1px solid rgba(31,78,26,.1)',marginBottom:4}}>
-                  <span style={{fontSize:14}}>✅</span>
-                  <span style={{fontSize:13,color:'var(--t)',flex:1}}>{item.name}</span>
-                  <span style={{fontSize:11,color:'var(--t3)'}}>{item.qty || ''}</span>
-                  <span style={{fontSize:11,padding:'2px 8px',background:'rgba(31,78,26,.1)',
-                    borderRadius:99,color:'var(--gm)',fontWeight:600}}>Have it</span>
-                </div>
-              ))}
+              {pantryItems.map((item, i) => {
+                const pantryMatch = getPantryMatch(item.name)
+                const pantryQty = pantryMatch?.quantity ? parseFloat(pantryMatch.quantity) : null
+                const pantryUnit = pantryMatch?.unit || ''
+                const neededQty = item.qty ? parseFloat(item.qty) : null
+                const needMore = pantryQty !== null && neededQty !== null && pantryQty < neededQty
+                return (
+                  <div key={i} style={{padding:'8px 12px',
+                    background: needMore ? '#fff9e6' : '#f8fef8',
+                    borderRadius:'var(--r)',
+                    border: `1px solid ${needMore ? '#ffe066' : 'rgba(31,78,26,.1)'}`,
+                    marginBottom:4}}>
+                    <div style={{display:'flex',alignItems:'center',gap:10}}>
+                      <span style={{fontSize:14}}>{needMore ? '⚠️' : '✅'}</span>
+                      <span style={{fontSize:13,color:'var(--t)',flex:1,fontWeight:500}}>{item.name}</span>
+                      <span style={{fontSize:11,padding:'2px 8px',
+                        background: needMore ? '#ffe066' : 'rgba(31,78,26,.1)',
+                        borderRadius:99,
+                        color: needMore ? '#8a6000' : 'var(--gm)',
+                        fontWeight:600}}>
+                        {needMore ? 'Need more' : 'Have it'}
+                      </span>
+                    </div>
+                    <div style={{display:'flex',gap:12,marginTop:4,fontSize:11}}>
+                      <span style={{color:'var(--t3)'}}>
+                        🛒 Need: <strong>{item.qty || '—'}</strong>
+                      </span>
+                      <span style={{color: needMore ? '#8a6000' : 'var(--gm)'}}>
+                        🏠 Have: <strong>{pantryQty !== null ? `${pantryQty} ${pantryUnit}` : 'some'}</strong>
+                      </span>
+                      {needMore && neededQty && pantryQty !== null && (
+                        <span style={{color:'#e55',fontWeight:600}}>
+                          → Buy {Math.ceil(neededQty - pantryQty)} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )
         })()}
