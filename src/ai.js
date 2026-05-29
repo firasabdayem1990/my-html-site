@@ -534,23 +534,30 @@ Return ONLY this JSON:
   return parseJSON(raw)
 }
 
-export async function fetchRecipe({ name, cuisine, desc, people, adults, kids, diet, restrictions, country, currency }) {
+export async function fetchRecipe({ name, cuisine, desc, people, adults, kids, diet, restrictions, country, currency, pantry }) {
   const effectivePortions = (adults || people) + ((kids || 0) * 0.5)
   const kidsNote = (kids || 0) > 0
     ? ` Note: ${kids} children — adjust spice levels, kids get half portions.`
     : ''
   const priceContext = getPriceContext(country)
 
-  const prompt = `Write a detailed authentic recipe for: "${name}"${cuisine ? ` (${cuisine})` : ''}${desc ? ` — ${desc}` : ''}.`
+  const pantryList = (pantry || []).map(p => {
+    const qty = p.quantity ? `${p.quantity} ${p.unit||''}` : 'some'
+    return `${p.name} (have: ${qty})`
+  }).join(', ')
+
+  const prompt = `Write the REAL AUTHENTIC detailed recipe for: "${name}"${cuisine ? ` (${cuisine})` : ''}${desc ? ` — ${desc}` : ''}.`
     + ` Serves ${adults || people} adults${(kids||0)>0 ? ` + ${kids} children` : ''} (${effectivePortions} effective portions).`
-    + ` Diet: ${diet}. Restrictions: ${restrictions || 'none'}. Country: ${country}. Currency: ${currency}.${kidsNote}`
+    + ` Country: ${country}. Currency: ${currency}.${kidsNote}`
     + ` Prices: ${priceContext}`
-    + ` Return JSON only, no markdown: {"prepTime":"","cookTime":"","difficulty":"","calories":0,"pricePerServing":0,"ingredients":[{"cookQty":"","shopQty":"","name":"","note":""}],"steps":[""],"tip":"","history":""}.`
+    + ` Return JSON only, no markdown: {"prepTime":"","cookTime":"","difficulty":"","calories":0,"pricePerServing":0,"ingredients":[{"cookQty":"","shopQty":"","name":"","note":"","inPantry":false}],"steps":[""],"tip":"","history":""}.`
     + ` calories = precise integer kcal for ONE adult serving.`
-    + ` pricePerServing = realistic TOTAL cost in ${currency} to buy ALL ingredients from scratch in ${country}. Add up each ingredient carefully. Never underestimate.`
-    + ` history = 2 concise sentences about origin and cultural story. Be brief and interesting.`
-    + ` cookQty = exact cooking amount: "2 tbsp", "1/2 tsp", "3 cloves", "1/4 cup".`
-    + ` shopQty = realistic store unit: "1 bottle", "1 bulb", "1 bag (500g)", "1 can (400g)". Never use fractions for shopQty.`
+    + ` pricePerServing = realistic TOTAL cost in ${currency} to buy ONLY ingredients NOT in pantry in ${country}. Never underestimate.`
+    + ` history = 2 concise sentences about origin and cultural story.`
+    + ` For each ingredient:`
+    + ` cookQty = EXACT cooking amount: "2 eggs", "1 tbsp olive oil", "3 garlic cloves".`
+    + ` shopQty = MINIMUM store unit needed: if need 2 eggs → "1 pack (6 eggs)", if need 1 tbsp → "1 small bottle", if need 200g → "1 bag (500g)". Buy minimum necessary.`
+    + ` inPantry = true if ingredient exists in: [${pantryList || 'empty'}]. If true, shopQty = "✓ In pantry" and estimatedCost = 0.`
 
   const raw = await callAPI('recipe', {
     model: 'claude-sonnet-4-5-20250929',
@@ -560,17 +567,29 @@ export async function fetchRecipe({ name, cuisine, desc, people, adults, kids, d
   return parseJSON(raw)
 }
 
-export async function searchRecipe({ query, people, adults, kids, diet, restrictions, country, currency }) {
+export async function searchRecipe({ query, people, adults, kids, diet, restrictions, country, currency, pantry }) {
   const effectivePortions = (adults || people) + ((kids || 0) * 0.5)
   const priceContext = getPriceContext(country)
+  
+  // Build pantry context
+  const pantryList = (pantry || []).map(p => {
+    const qty = p.quantity ? `${p.quantity} ${p.unit||''}` : 'some'
+    return `${p.name} (have: ${qty})`
+  }).join(', ')
 
-  const prompt = `Recipe: "${query}". Serves ${adults || people} adults${(kids||0)>0 ? ` + ${kids} children` : ''} (${effectivePortions} effective portions). Diet: ${diet}. Restrictions: ${restrictions || 'none'}. Country: ${country}. Currency: ${currency}.`
+  const prompt = `Give me the REAL AUTHENTIC traditional recipe for: "${query}". This is a recipe search — always return the genuine traditional recipe regardless of any dietary preferences.`
+    + ` Serves ${adults || people} adults${(kids||0)>0 ? ` + ${kids} children` : ''} (${effectivePortions} effective portions).`
+    + ` Country: ${country}. Currency: ${currency}.`
     + ` Prices: ${priceContext}`
-    + ` Return JSON only: {"dishName":"","cuisine":"","prepTime":"","cookTime":"","difficulty":"","servings":${people},"pricePerServing":0,"calories":0,"ingredients":[{"cookQty":"","shopQty":"","name":"","note":""}],"steps":[""],"tip":"","history":"","funFact":""}.`
+    + ` Return JSON only: {"dishName":"","cuisine":"","prepTime":"","cookTime":"","difficulty":"","servings":${people},"pricePerServing":0,"calories":0,"ingredients":[{"cookQty":"","shopQty":"","name":"","note":"","inPantry":false}],"steps":[""],"tip":"","history":"","funFact":""}.`
     + ` calories = precise integer kcal/serving for ONE adult.`
-    + ` pricePerServing = realistic TOTAL cost in ${currency} to buy ALL ingredients from scratch in ${country}. Add up each ingredient carefully using real supermarket prices. Never underestimate.`
+    + ` pricePerServing = realistic TOTAL cost in ${currency} to buy ONLY the ingredients NOT in pantry from scratch in ${country}. Add up carefully.`
     + ` history = 2 concise sentences about origin and cultural story.`
-    + ` cookQty = exact cooking amount. shopQty = realistic store purchase unit (no fractions for fresh produce).`
+    + ` For each ingredient:`
+    + ` cookQty = EXACT amount needed for cooking: "2 eggs", "1 tbsp olive oil", "200g flour"`
+    + ` shopQty = MINIMUM realistic store unit to buy: if need 2 eggs → "1 pack (6 eggs)", if need 1 tbsp olive oil → "1 small bottle (250ml)", if need 200g flour → "1 bag (500g)". Never buy more than necessary.`
+    + ` inPantry = true if this ingredient exists in user pantry: [${pantryList || 'empty'}]. If inPantry is true, shopQty = "✓ In pantry" and cost = 0.`
+    + ` IMPORTANT: Be smart about quantities — if recipe needs 2 eggs, shopQty is "1 pack (6)" not "1 dozen". If needs 1 tbsp oil, shopQty is "1 bottle" not "5 liters".`
 
   const raw = await callAPI('recipe', {
     model: 'claude-sonnet-4-5-20250929',
