@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { generateMealPlan } from '../ai.js'
-import { loadMealPreferences } from '../supabase.js'
 
 // Flag image helper — more reliable than emoji flags
 const FlagImg = ({code, size=16}) => (
@@ -158,26 +157,6 @@ export default function SetupTab({ state, onPlanGenerated }) {
   const [cuisineSearch, setCuisineSearch] = useState('')
   const [calResult, setCalResult] = useState(null)
   const [calOpen, setCalOpen] = useState(false)
-  const [locationDetected, setLocationDetected] = useState(false)
-
-  // Auto-detect country from IP — only on very first load (no saved preference)
-  useEffect(() => {
-    if (locationDetected) return
-    const alreadySet = localStorage.getItem('sb_country_manually_set')
-    if (alreadySet) return // user manually changed it before — respect their choice
-    setLocationDetected(true)
-    fetch('https://ipapi.co/json/')
-      .then(r => r.json())
-      .then(data => {
-        if (data.country_name) {
-          updatePrefs({
-            country: data.country_name,
-            currency: data.currency || prefs.currency || '$'
-          })
-        }
-      })
-      .catch(() => {})
-  }, [])
 
   // Adults + kids counts
   const adults = parseInt(prefs.adults) || 2
@@ -214,15 +193,6 @@ export default function SetupTab({ state, onPlanGenerated }) {
   const handleGenerate = async () => {
     setGenerating(true); setError('')
     try {
-      // Load meal preferences
-      let likedMeals = [], dislikedMeals = []
-      if (state && state.user) {
-        try {
-          const prefs_data = await loadMealPreferences(state.user.id)
-          likedMeals = prefs_data.liked
-          dislikedMeals = prefs_data.disliked
-        } catch(e) {}
-      }
       const plan = await generateMealPlan({
         budget: parseFloat(prefs.budget) || 80,
         adults,
@@ -236,9 +206,7 @@ export default function SetupTab({ state, onPlanGenerated }) {
         pantry: pantry || [],
         cuisines: prefs.cuisines || [],
         cuisinePercs: prefs.cuisinePercs || [],
-        calTarget: prefs.calTarget || 0,
-        likedMeals,
-        dislikedMeals
+        calTarget: prefs.calTarget || 0
       })
       plan._cur = prefs.currency || '$'
       plan._cuisines = prefs.cuisines || []
