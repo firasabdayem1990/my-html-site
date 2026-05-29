@@ -417,6 +417,31 @@ export default function ShoppingTab({ state }) {
                   {(dish.ingredients || []).map((ing, i) => {
                     const k = 'extra_' + di + '_' + i
                     const isc = checked.has(k)
+                    // Real-time pantry check
+                    const inPantry = ing.inPantry || (state.pantry||[]).some(p => {
+                      const pn = p.name.toLowerCase().trim()
+                      const ingn = (ing.name||'').toLowerCase().trim()
+                      return ingn.includes(pn) || pn.includes(ingn) ||
+                        ingn.replace(/s$/,'') === pn.replace(/s$/,'')
+                    })
+                    if (inPantry) return (
+                      <div key={k} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',
+                        background:'#f8fef8',borderRadius:'var(--r)',marginBottom:2}}>
+                        <span style={{fontSize:13}}>✅</span>
+                        <span style={{fontSize:13,color:'var(--t)',flex:1,textDecoration:'line-through',opacity:.6}}>{ing.name}</span>
+                        <span style={{fontSize:10,padding:'2px 8px',background:'rgba(31,78,26,.1)',
+                          borderRadius:99,color:'var(--gm)',fontWeight:600}}>In pantry</span>
+                      </div>
+                    )
+                    // Skip "assume available" items
+                    if (ing.qty === '✓ Assume available' || ing.shopQty === '✓ Assume available') return (
+                      <div key={k} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',
+                        background:'#f8fef8',borderRadius:'var(--r)',marginBottom:2,opacity:.5}}>
+                        <span style={{fontSize:13}}>✅</span>
+                        <span style={{fontSize:13,color:'var(--t)',flex:1,textDecoration:'line-through'}}>{ing.name}</span>
+                        <span style={{fontSize:10,color:'var(--t3)'}}>assumed available</span>
+                      </div>
+                    )
                     return (
                       <div key={k} className={'srow' + (isc ? ' chk' : '')} onClick={() => toggleItem(k)}>
                         <div className={'chkbox' + (isc ? ' on' : '')}></div>
