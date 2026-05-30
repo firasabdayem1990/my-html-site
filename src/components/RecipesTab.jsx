@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { fetchRecipe, searchRecipe } from '../ai.js'
 import { loadCommunityRecipes, submitCommunityRecipe, deleteCommunityRecipe, toggleLike, loadUserLikes, saveRecipeCacheCloud, loadRecipeCacheCloud, clearRecipeCacheCloud } from '../supabase.js'
+import { supabase } from '../supabase.js'
 
 const CUISINE_FLAGS = {'Lebanese':'🇱🇧','Mediterranean':'🌊','Italian':'🇮🇹','French':'🇫🇷','Mexican':'🇲🇽','Indian':'🇮🇳','Japanese':'🇯🇵','Chinese':'🇨🇳','Thai':'🇹🇭','Greek':'🇬🇷','Turkish':'🇹🇷','Moroccan':'🇲🇦','Syrian':'🇸🇾','Korean':'🇰🇷','Spanish':'🇪🇸','Persian':'🇮🇷'}
 const flag = (c) => CUISINE_FLAGS[c] || '🍽️'
@@ -141,6 +142,19 @@ export default function RecipesTab({ state }) {
         const newCache = {...recipeCache, [rid]: r}
         setRecipeCache(newCache)
         await saveToAllLayers(newCache, rid, r)
+        // Also save to shared cache so all users benefit
+        if (supabase && m?.name) {
+          try {
+            const normName = (m.name||name).toLowerCase().trim().replace(/\s+/g,' ')
+            const country = prefs.country || 'Lebanon'
+            await supabase.from('shared_recipe_cache').upsert({
+              dish_name: normName,
+              country,
+              recipe_data: JSON.stringify(r),
+              cached_at: new Date().toISOString()
+            }, { onConflict: 'dish_name,country' })
+          } catch(e) { /* fail silently */ }
+        }
       } catch(e) {}
       setLoadingCard(null)
     }
