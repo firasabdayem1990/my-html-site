@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAppState } from '../hooks/useAppState.js'
 import SetupTab from './SetupTab.jsx'
 import PantryTab from './PantryTab.jsx'
@@ -25,10 +25,10 @@ export default function MainApp({ user, onSignOut }) {
 
   useEffect(() => {
     if (!user) return
-    import('../supabase.js').then(({ getUserPlan, getUsage }) => {
-      getUserPlan(user.id).then(p => setUserPlan(p.plan))
-      getUsage(user.id).then(u => setUsage(u))
-    })
+    import('../supabase.js').then(mod => {
+      if (mod.getUserPlan) mod.getUserPlan(user.id).then(p => setUserPlan(p.plan)).catch(()=>{})
+      if (mod.getUsage) mod.getUsage(user.id).then(u => setUsage(u)).catch(()=>{})
+    }).catch(()=>{})
   }, [user])
 
   const planLimits = {
