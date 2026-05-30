@@ -270,17 +270,19 @@ export default function RecipesTab({ state }) {
           <div style={{fontSize:12,fontWeight:700,color:'var(--t)'}}>Serves {parseInt(prefs.people)||2}</div>
           <div style={{fontSize:11,color:'var(--t3)'}}>Based on your household in Setup tab</div>
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0,flexWrap:'wrap'}}>
-          <span style={{fontSize:11,color:'var(--t3)'}}>Scale:</span>
-          {[1,2,3,4,5,6,7,8].map(s=>(
-            <button key={s} onClick={()=>setScaleFactors(p=>({...p,[rid||'search']:s}))}
-              style={{padding:'3px 7px',fontSize:11,fontWeight:600,
-                background:(scaleFactors[rid||'search']||1)===s?'var(--g)':'var(--bg)',
-                color:(scaleFactors[rid||'search']||1)===s?'#fff':'var(--t2)',
-                border:'1px solid var(--bdr2)',borderRadius:6,cursor:'pointer',fontFamily:'var(--sans)'}}>
-              {s+'×'}
-            </button>
-          ))}
+        <div style={{width:'100%',marginTop:6}}>
+          <span style={{fontSize:11,color:'var(--t3)',display:'block',marginBottom:4}}>Scale:</span>
+          <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+            {[1,2,3,4,5,6,7,8].map(s=>(
+              <button key={s} onClick={()=>setScaleFactors(p=>({...p,[rid||'search']:s}))}
+                style={{padding:'4px 10px',fontSize:11,fontWeight:600,
+                  background:(scaleFactors[rid||'search']||1)===s?'var(--g)':'var(--bg)',
+                  color:(scaleFactors[rid||'search']||1)===s?'#fff':'var(--t2)',
+                  border:'1px solid var(--bdr2)',borderRadius:6,cursor:'pointer',fontFamily:'var(--sans)'}}>
+                {s+'×'}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
