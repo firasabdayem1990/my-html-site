@@ -461,7 +461,7 @@ const getPriceContext = (country) => {
     `${country}: Use realistic local supermarket prices. Research current costs for staple ingredients in ${country}. Be accurate — never guess too low. Consider local cost of living.`
 }
 
-// ── MEAL PLAN ─────────────────────────────────────────────────────────────────
+// ── MEAL PLAN (no caching — always fresh, personalized) ──────────────────────
 
 export async function generateMealPlan({ budget, adults, kids, people, currency, country, diet, health, restrictions, pantry, cuisines, cuisinePercs, calTarget, likedMeals, dislikedMeals }) {
   const restrictionLine = restrictions
@@ -576,8 +576,11 @@ Return ONLY this JSON:
 // ── FETCH RECIPE — cache-first ────────────────────────────────────────────────
 
 export async function fetchRecipe({ name, cuisine, desc, people, adults, kids, diet, restrictions, country, currency, pantry }) {
+  // 1. Check cache first (pantry is personal so we always call AI for pantry matching,
+  //    but we cache the base recipe and apply pantry client-side)
   const cached = await getCached(name, country)
   if (cached) {
+    // Apply pantry flags on the cached recipe so inPantry stays accurate per user
     if (pantry && pantry.length && cached.ingredients) {
       const pantryNames = pantry.map(p => p.name.toLowerCase())
       cached.ingredients = cached.ingredients.map(ing => ({
@@ -588,9 +591,13 @@ export async function fetchRecipe({ name, cuisine, desc, people, adults, kids, d
     return cached
   }
 
+  // 2. Not cached — call AI
   const effectivePortions = (adults || people) + ((kids || 0) * 0.5)
-  const kidsNote = (kids || 0) > 0 ? ` Note: ${kids} children — adjust spice levels, kids get half portions.` : ''
+  const kidsNote = (kids || 0) > 0
+    ? ` Note: ${kids} children — adjust spice levels, kids get half portions.`
+    : ''
   const priceContext = getPriceContext(country)
+
   const pantryList = (pantry || []).map(p => {
     const qty = p.quantity ? `${p.quantity} ${p.unit||''}` : 'some'
     return `${p.name} (have: ${qty})`
@@ -604,8 +611,8 @@ export async function fetchRecipe({ name, cuisine, desc, people, adults, kids, d
     + ` calories = precise integer kcal for ONE adult serving.`
     + ` pricePerServing = realistic TOTAL cost in ${currency} to buy ONLY ingredients NOT in pantry in ${country}. Never underestimate.`
     + ` history = 2 concise sentences about origin and cultural story.`
-    + ` CRITICAL cookQty rule: ALWAYS use standard measurable units. Write "3 tbsp lemon juice" NOT "juice of 1 lemon". Write "2 garlic cloves" NOT "a few cloves". Write "1/2 tsp salt" NOT "salt to taste". NEVER use vague phrases — always use numbers with tsp/tbsp/g/ml/pieces.`
-    + ` cookQty = EXACT cooking amount in measurable units: "2 eggs", "1 tbsp olive oil", "3 garlic cloves", "3 tbsp lemon juice".`
+    + ` For each ingredient:`
+    + ` cookQty = EXACT cooking amount: "2 eggs", "1 tbsp olive oil", "3 garlic cloves".`
     + ` shopQty = MINIMUM store unit needed: if need 2 eggs → "1 pack (6 eggs)", if need 1 tbsp → "1 small bottle", if need 200g → "1 bag (500g)". Buy minimum necessary.`
     + ` inPantry = true ONLY if ingredient EXACTLY matches this pantry list: [${pantryList || 'empty'}]. NEVER assume ANY ingredient is available. If not in the list, inPantry must be false.`
 
@@ -616,19 +623,23 @@ export async function fetchRecipe({ name, cuisine, desc, people, adults, kids, d
   })
   const result = parseJSON(raw)
 
+  // 3. Save to cache (without pantry-specific flags — pantry is applied per user above)
   const toCache = {
     ...result,
     ingredients: result.ingredients?.map(ing => ({ ...ing, inPantry: false }))
   }
   await saveToCache(name, country, toCache)
+
   return result
 }
 
 // ── SEARCH RECIPE — cache-first ───────────────────────────────────────────────
 
 export async function searchRecipe({ query, people, adults, kids, diet, restrictions, country, currency, pantry }) {
+  // 1. Check cache
   const cached = await getCached(query, country)
   if (cached) {
+    // Apply pantry flags per user
     if (pantry && pantry.length && cached.ingredients) {
       const pantryNames = pantry.map(p => p.name.toLowerCase())
       cached.ingredients = cached.ingredients.map(ing => ({
@@ -639,8 +650,10 @@ export async function searchRecipe({ query, people, adults, kids, diet, restrict
     return cached
   }
 
+  // 2. Not cached — call AI
   const effectivePortions = (adults || people) + ((kids || 0) * 0.5)
   const priceContext = getPriceContext(country)
+
   const pantryList = (pantry || []).map(p => {
     const qty = p.quantity ? `${p.quantity} ${p.unit||''}` : 'some'
     return `${p.name} (have: ${qty})`
@@ -654,8 +667,8 @@ export async function searchRecipe({ query, people, adults, kids, diet, restrict
     + ` calories = precise integer kcal/serving for ONE adult.`
     + ` pricePerServing = realistic TOTAL cost in ${currency} to buy ONLY the ingredients NOT in pantry from scratch in ${country}. Add up carefully.`
     + ` history = 2 concise sentences about origin and cultural story.`
-    + ` CRITICAL cookQty rule: ALWAYS use standard measurable units. Write "3 tbsp lemon juice" NOT "juice of 1 lemon". Write "2 garlic cloves" NOT "a few cloves". Write "1/2 tsp salt" NOT "salt to taste". NEVER use vague phrases — always convert to numbers with tsp/tbsp/g/ml/pieces.`
-    + ` cookQty = EXACT amount in measurable units: "2 eggs", "1 tbsp olive oil", "200g flour", "3 tbsp lemon juice".`
+    + ` For each ingredient:`
+    + ` cookQty = EXACT amount needed for cooking: "2 eggs", "1 tbsp olive oil", "200g flour"`
     + ` shopQty = MINIMUM realistic store unit to buy: if need 2 eggs → "1 pack (6 eggs)", if need 1 tbsp olive oil → "1 small bottle (250ml)", if need 200g flour → "1 bag (500g)". Never buy more than necessary.`
     + ` inPantry = true ONLY if ingredient EXACTLY matches this pantry list: [${pantryList || 'empty'}]. NEVER assume ANY ingredient is available. If pantry list is empty, ALL inPantry values must be false.`
     + ` IMPORTANT: Be smart about quantities — if recipe needs 2 eggs, shopQty is "1 pack (6)" not "1 dozen". If needs 1 tbsp oil, shopQty is "1 bottle" not "5 liters".`
@@ -667,10 +680,12 @@ export async function searchRecipe({ query, people, adults, kids, diet, restrict
   })
   const result = parseJSON(raw)
 
+  // 3. Save to cache (strip pantry-specific flags)
   const toCache = {
     ...result,
     ingredients: result.ingredients?.map(ing => ({ ...ing, inPantry: false }))
   }
   await saveToCache(query, country, toCache)
+
   return result
 }
