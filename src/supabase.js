@@ -361,6 +361,34 @@ export async function submitComment(userId, recipeId, author, comment) {
   await supabase.rpc('update_comment_count', { p_recipe_id: recipeId }).catch(() => {})
 }
 
+// ── PLAN MANAGEMENT ──
+export async function getUserPlan(userId) {
+  if (!supabase) return { plan: 'free', isAdmin: false }
+  const { data } = await supabase
+    .from('profiles')
+    .select('plan, is_admin, plan_expires_at')
+    .eq('id', userId)
+    .maybeSingle()
+  return {
+    plan: data?.is_admin ? 'admin' : (data?.plan || 'free'),
+    isAdmin: data?.is_admin || false,
+    expiresAt: data?.plan_expires_at
+  }
+}
+
+export async function getUsage(userId) {
+  if (!supabase) return { generations: 0, recipes: 0 }
+  const now = new Date()
+  const month = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
+  const { data } = await supabase
+    .from('usage')
+    .select('generations, recipes')
+    .eq('user_id', userId)
+    .eq('month', month)
+    .maybeSingle()
+  return { generations: data?.generations || 0, recipes: data?.recipes || 0 }
+}
+
 export async function deleteComment(userId, commentId) {
   const { error } = await supabase
     .from('recipe_comments')
