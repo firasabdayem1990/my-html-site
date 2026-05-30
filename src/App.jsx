@@ -19,7 +19,6 @@ export default function App() {
     }
   }, [])
   const [loading, setLoading] = useState(true)
-  const [guestMode, setGuestMode] = useState(false)
   const [loadingMsg, setLoadingMsg] = useState('Loading your basket…')
 
   useEffect(() => {
@@ -124,8 +123,8 @@ export default function App() {
     )
   }
 
-  if (!user && !guestMode && supabase) {
-    return <AuthScreen onSkip={() => setGuestMode(true)} />
+  if (!user && supabase) {
+    return <AuthScreen />
   }
 
   return <MainApp user={user} onSignOut={handleSignOut} />
