@@ -145,7 +145,7 @@ export async function fetchRecipe({ name, cuisine, desc, people, diet, restricti
 export async function searchRecipe({ query, people, diet, restrictions, country, currency }) {
   const priceContext = getPriceContext(country)
 
-  const prompt = `Give me the REAL AUTHENTIC traditional recipe for: "${query}". Always return the genuine traditional recipe.`
+  const prompt = `Give me the REAL AUTHENTIC recipe for EXACTLY: "${query}". Return ONLY this specific dish — do NOT substitute, replace, or suggest alternatives. If the user searches "cheesecake" return cheesecake, not a similar dish. Always return the exact dish requested.`
     + ` Serves ${people}. Diet: ${diet}. Restrictions: ${restrictions||'none'}. Country: ${country}. Currency: ${currency}.`
     + ` Use REAL local prices for ${country}: ${priceContext}`
     + ` Return JSON only: {"dishName":"","cuisine":"","prepTime":"","cookTime":"","difficulty":"","servings":${people},"pricePerServing":0,"calories":0,"protein":0,"carbs":0,"fat":0,"fiber":0,"ingredients":[{"qty":"","name":"","note":""}],"steps":[""],"tip":"","history":"","funFact":""}.`
