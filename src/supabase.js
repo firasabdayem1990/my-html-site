@@ -212,3 +212,99 @@ export async function loadUserRatings(userId) {
   ;(data || []).forEach(r => { map[r.recipe_id] = r.rating })
   return map
 }
+
+// ── COMMENTS ──
+export async function loadComments(recipeId) {
+  const { data, error } = await supabase
+    .from('recipe_comments')
+    .select('*')
+    .eq('recipe_id', recipeId)
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return data || []
+}
+
+export async function submitComment(userId, recipeId, text) {
+  const { error } = await supabase.from('recipe_comments').insert({
+    user_id: userId,
+    recipe_id: recipeId,
+    text
+  })
+  if (error) throw error
+}
+
+export async function deleteComment(userId, commentId) {
+  const { error } = await supabase
+    .from('recipe_comments')
+    .delete()
+    .eq('id', commentId)
+    .eq('user_id', userId)
+  if (error) throw error
+}
+
+// ── RECIPE CACHE CLOUD ──
+export async function saveRecipeCacheCloud(userId, key, data) {
+  const { error } = await supabase.from('recipe_cache').upsert({
+    user_id: userId,
+    plan_key: key,
+    recipe_data: data
+  }, { onConflict: 'user_id,plan_key' })
+  if (error) throw error
+}
+
+export async function loadRecipeCacheCloud(userId, key) {
+  const { data, error } = await supabase
+    .from('recipe_cache')
+    .select('recipe_data')
+    .eq('user_id', userId)
+    .eq('plan_key', key)
+    .maybeSingle()
+  if (error) throw error
+  return data?.recipe_data || null
+}
+
+// ── USER META ──
+export async function saveUserMeta(userId, key, value) {
+  if (!supabase) return
+  try {
+    await supabase.from('profiles').upsert({
+      id: userId,
+      [key]: JSON.stringify(value)
+    }, { onConflict: 'id' })
+  } catch(e) { console.warn('saveUserMeta failed:', e.message) }
+}
+
+// ── RECIPE CACHE CLOUD ──
+export async function saveRecipeCacheCloud(userId, planKey, rid, recipeData) {
+  if (!supabase) return
+  try {
+    await supabase.from('recipe_cache').upsert({
+      user_id: userId,
+      plan_key: planKey,
+      recipe_id: rid,
+      recipe_data: recipeData
+    }, { onConflict: 'user_id,plan_key,recipe_id' })
+  } catch(e) { console.warn('saveRecipeCacheCloud failed:', e.message) }
+}
+
+export async function loadRecipeCacheCloud(userId, planKey) {
+  if (!supabase) return {}
+  try {
+    const { data, error } = await supabase
+      .from('recipe_cache')
+      .select('recipe_id, recipe_data')
+      .eq('user_id', userId)
+      .eq('plan_key', planKey)
+    if (error) return {}
+    const result = {}
+    ;(data || []).forEach(r => { result[r.recipe_id] = r.recipe_data })
+    return result
+  } catch(e) { return {} }
+}
+
+export async function clearRecipeCacheCloud(userId) {
+  if (!supabase) return
+  try {
+    await supabase.from('recipe_cache').delete().eq('user_id', userId)
+  } catch(e) { console.warn('clearRecipeCacheCloud failed:', e.message) }
+}
