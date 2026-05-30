@@ -218,27 +218,6 @@ export async function deleteComment(userId, commentId) {
   if (error) throw error
 }
 
-// ── RECIPE CACHE CLOUD ──
-export async function saveRecipeCacheCloud(userId, key, data) {
-  const { error } = await supabase.from('recipe_cache').upsert({
-    user_id: userId,
-    plan_key: key,
-    recipe_data: data
-  }, { onConflict: 'user_id,plan_key' })
-  if (error) throw error
-}
-
-export async function loadRecipeCacheCloud(userId, key) {
-  const { data, error } = await supabase
-    .from('recipe_cache')
-    .select('recipe_data')
-    .eq('user_id', userId)
-    .eq('plan_key', key)
-    .maybeSingle()
-  if (error) throw error
-  return data?.recipe_data || null
-}
-
 // ── USER META ──
 export async function saveUserMeta(userId, key, value) {
   if (!supabase) return
