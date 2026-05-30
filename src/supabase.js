@@ -64,7 +64,13 @@ export async function savePantry(userId, items) {
   await supabase.from('pantry').delete().eq('user_id', userId)
   if (items.length) {
     await supabase.from('pantry').insert(
-      items.map(p => ({ user_id: userId, name: p.name, expiry: p.exp }))
+      items.map(p => ({
+        user_id: userId,
+        name: p.name,
+        expiry: p.exp,
+        quantity: p.quantity || null,
+        unit: p.unit || null
+      }))
     )
   }
 }
@@ -76,7 +82,13 @@ export async function loadPantry(userId) {
     .eq('user_id', userId)
     .order('created_at')
   if (error) throw error
-  return (data || []).map(r => ({ id: r.id, name: r.name, exp: r.expiry || 'Unspecified' }))
+  return (data || []).map(r => ({
+    id: r.id,
+    name: r.name,
+    exp: r.expiry || 'Unspecified',
+    quantity: r.quantity || '',
+    unit: r.unit || 'piece(s)'
+  }))
 }
 
 // ── PREFERENCES ──
