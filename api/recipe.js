@@ -1,118 +1,131 @@
-// api/recipe.js — recipe fetcher with usage tracking
-import { createClient } from '@supabase/supabase-js';
+import Anthropic from '@anthropic-ai/sdk'
+import { createClient } from '@supabase/supabase-js'
 
-const FREE_RECIPE_LIMIT = 50;   // recipe fetches per month for registered users
-const GUEST_RECIPE_LIMIT = 0;  // recipe fetches per month for guests
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_KEY })
+const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+
+const PLAN_LIMITS = {
+  free: { recipes: 20 },
+  basic: { recipes: 400 },
+  admin: { recipes: 999999 }
+}
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  if (!process.env.ANTHROPIC_KEY) {
-    return res.status(500).json({ error: 'ANTHROPIC_KEY not configured' });
-  }
-
-  const token = req.headers['authorization']?.replace('Bearer ', '');
-  const month = new Date().toISOString().slice(0, 7);
-
-  if (token && process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
-    // ── REGISTERED USER ──
-    try {
-      const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-      const { data: { user } } = await sb.auth.getUser(token);
-
-      if (user) {
-        // Check if admin → unlimited
-        const { data: profile } = await sb
-          .from('profiles')
-          .select('is_admin')
-          .eq('id', user.id)
-          .maybeSingle();
-
-        if (!profile?.is_admin) {
-          // Regular user — check recipe limit
-          const { data: usage } = await sb
-            .from('usage')
-            .select('recipes')
-            .eq('user_id', user.id)
-            .eq('month', month)
-            .maybeSingle();
-
-          const count = usage?.recipes || 0;
-
-          if (count >= FREE_RECIPE_LIMIT) {
-            return res.status(429).json({
-              error: `Recipe limit reached (${FREE_RECIPE_LIMIT}/month). Resets next month.`
-            });
-          }
-
-          await sb.from('usage').upsert({
-            user_id: user.id,
-            month,
-            recipes: count + 1
-          }, { onConflict: 'user_id,month' });
-        }
-      }
-    } catch (e) {
-      console.warn('Usage tracking failed:', e.message);
-    }
-  } else {
-    // ── GUEST USER — limit by IP ──
-    if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY) {
-      try {
-        const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-
-        const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim()
-          || req.headers['x-real-ip']
-          || 'unknown';
-
-        const guestKey = `guest_${ip}`;
-
-        const { data: usage } = await sb
-          .from('usage')
-          .select('recipes')
-          .eq('user_id', guestKey)
-          .eq('month', month)
-          .maybeSingle();
-
-        const count = usage?.recipes || 0;
-
-        if (count >= GUEST_RECIPE_LIMIT) {
-          return res.status(429).json({
-            error: `Guest recipe limit reached (${GUEST_RECIPE_LIMIT}/month). Create a free account for ${FREE_RECIPE_LIMIT} recipes/month!`
-          });
-        }
-
-        await sb.from('usage').upsert({
-          user_id: guestKey,
-          month,
-          recipes: count + 1
-        }, { onConflict: 'user_id,month' });
-
-      } catch (e) {
-        console.warn('Guest recipe tracking failed:', e.message);
-      }
+  // Get user from auth token
+  let userId = null
+  let userPlan = 'free'
+  const authHeader = req.headers.authorization
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice(7)
+    const { data: { user } } = await supabase.auth.getUser(token)
+    if (user) {
+      userId = user.id
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('plan, is_admin')
+        .eq('id', userId)
+        .maybeSingle()
+      if (profile?.is_admin) userPlan = 'admin'
+      else if (profile?.plan === 'basic') userPlan = 'basic'
     }
   }
 
-  // ── CALL ANTHROPIC ──
+  if (!userId) {
+    return res.status(401).json({ error: { message: 'Please sign in to search recipes.' } })
+  }
+
+  const { messages } = req.body
+  const userMessage = messages?.[0]?.content || ''
+
+  // Extract dish name and country for cache key
+  const dishMatch = userMessage.match(/recipe for: "([^"]+)"/)
+  const countryMatch = userMessage.match(/Country: ([^.]+)\./)
+  const dishName = dishMatch?.[1]?.toLowerCase().trim() || ''
+  const country = countryMatch?.[1]?.trim() || 'Lebanon'
+
+  // ── STEP 1: Check shared cache ──
+  if (dishName) {
+    const { data: cached } = await supabase
+      .from('shared_recipe_cache')
+      .select('recipe_data, search_count')
+      .eq('dish_name', dishName)
+      .eq('country', country)
+      .maybeSingle()
+
+    if (cached) {
+      console.log(`Cache hit: ${dishName} in ${country}`)
+      await supabase.from('shared_recipe_cache')
+        .update({ search_count: (cached.search_count || 1) + 1 })
+        .eq('dish_name', dishName)
+        .eq('country', country)
+      return res.json({
+        content: [{ type: 'text', text: JSON.stringify(cached.recipe_data) }],
+        fromCache: true
+      })
+    }
+  }
+
+  // ── STEP 2: Check quota ──
+  const now = new Date()
+  const month = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
+  const limit = PLAN_LIMITS[userPlan]?.recipes || 20
+
+  const { data: usage } = await supabase
+    .from('usage')
+    .select('recipes')
+    .eq('user_id', userId)
+    .eq('month', month)
+    .maybeSingle()
+
+  const currentRecipes = usage?.recipes || 0
+
+  if (userPlan !== 'admin' && currentRecipes >= limit) {
+    return res.status(429).json({
+      error: {
+        message: userPlan === 'free'
+          ? `Free plan limit reached (${limit} recipes/month). Upgrade to Basic ($6.99/mo) for 400 recipes!`
+          : `Monthly limit reached (${limit} recipes). Resets next month.`
+      }
+    })
+  }
+
+  // ── STEP 3: Call AI ──
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify(req.body)
-    });
-    const data = await response.json();
-    if (!response.ok) return res.status(response.status).json(data);
-    return res.status(200).json(data);
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: req.body.max_tokens || 3000,
+      messages: req.body.messages
+    })
+
+    // ── STEP 4: Save to shared cache ──
+    if (dishName && response.content?.[0]?.text) {
+      try {
+        const clean = response.content[0].text
+          .replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim()
+        const fb = clean.indexOf('{'), lb = clean.lastIndexOf('}')
+        const recipeData = JSON.parse(clean.substring(fb, lb+1))
+        await supabase.from('shared_recipe_cache').upsert({
+          dish_name: dishName,
+          country,
+          recipe_data: recipeData,
+          search_count: 1
+        }, { onConflict: 'dish_name,country' })
+      } catch(e) {
+        console.log('Cache save failed:', e.message)
+      }
+    }
+
+    // ── STEP 5: Update usage ──
+    await supabase.from('usage').upsert({
+      user_id: userId,
+      month,
+      recipes: currentRecipes + 1
+    }, { onConflict: 'user_id,month' })
+
+    return res.json(response)
+  } catch(err) {
+    return res.status(500).json({ error: { message: err.message } })
   }
 }
