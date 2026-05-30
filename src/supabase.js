@@ -9,7 +9,15 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 }
 
 export const supabase = SUPABASE_URL
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        storageKey: 'smartbasket-auth',
+        storage: localStorage,
+        autoRefreshToken: true,
+        detectSessionInUrl: false
+      }
+    })
   : null
 
 // ── AUTH ──
@@ -39,39 +47,18 @@ export async function getSession() {
 
 // ── PLANS ──
 export async function savePlan(userId, planData) {
-  // Generate week key based on current date (e.g. "2025-W01")
-  const now = new Date()
-  const weekNum = Math.ceil((now.getDate() + new Date(now.getFullYear(), now.getMonth(), 1).getDay()) / 7)
-  const weekKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-W${weekNum}`
-
-  // Save this plan
   const { error } = await supabase.from('plans').upsert({
     user_id: userId,
-    name: `Plan ${weekKey}`,
-    plan_data: planData,
-    week_key: weekKey,
-    created_week: weekKey
-  }, { onConflict: 'user_id,week_key' })
+    name: 'My Weekly Plan',
+    plan_data: planData
+  }, { onConflict: 'user_id' })
   if (error) throw error
-
-  // Keep only last 4 plans per user
-  const { data: allPlans } = await supabase
-    .from('plans')
-    .select('id, created_at')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-
-  if (allPlans && allPlans.length > 4) {
-    const toDelete = allPlans.slice(4).map(p => p.id)
-    await supabase.from('plans').delete().in('id', toDelete)
-  }
 }
 
 export async function loadPlan(userId) {
-  // Load most recent plan
   const { data, error } = await supabase
     .from('plans')
-    .select('plan_data, week_key, created_at')
+    .select('plan_data')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -80,30 +67,12 @@ export async function loadPlan(userId) {
   return data?.plan_data || null
 }
 
-export async function loadAllPlans(userId) {
-  // Load all saved plans (max 4)
-  const { data, error } = await supabase
-    .from('plans')
-    .select('id, plan_data, week_key, created_at, name')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(4)
-  if (error) throw error
-  return data || []
-}
-
 // ── PANTRY ──
 export async function savePantry(userId, items) {
   await supabase.from('pantry').delete().eq('user_id', userId)
   if (items.length) {
     await supabase.from('pantry').insert(
-      items.map(p => ({
-        user_id: userId,
-        name: p.name,
-        expiry: p.exp,
-        quantity: p.quantity || '1',
-        unit: p.unit || 'piece(s)'
-      }))
+      items.map(p => ({ user_id: userId, name: p.name, expiry: p.exp }))
     )
   }
 }
@@ -115,13 +84,7 @@ export async function loadPantry(userId) {
     .eq('user_id', userId)
     .order('created_at')
   if (error) throw error
-  return (data || []).map(r => ({
-    id: r.id,
-    name: r.name,
-    exp: r.expiry || 'Unspecified',
-    quantity: r.quantity || '1',
-    unit: r.unit || 'piece(s)'
-  }))
+  return (data || []).map(r => ({ id: r.id, name: r.name, exp: r.expiry || 'Unspecified' }))
 }
 
 // ── PREFERENCES ──
@@ -166,9 +129,7 @@ export async function loadCommunityRecipes() {
   const { data, error } = await supabase
     .from('community_recipes')
     .select('*')
-    .order('avg_rating', { ascending: false })
     .order('likes', { ascending: false })
-    .order('created_at', { ascending: false })
   if (error) throw error
   return data || []
 }
@@ -213,187 +174,4 @@ export async function toggleLike(userId, recipeId, isLiked) {
     await supabase.from('recipe_likes').upsert({ user_id: userId, recipe_id: recipeId })
     await supabase.rpc('increment_likes', { recipe_id: recipeId }).catch(() => {})
   }
-}
-
-// ── MEAL PREFERENCES ──
-export async function saveMealPreference(userId, mealName, rating, cuisine) {
-  if (!supabase) return
-  const { error } = await supabase.from('meal_preferences').upsert({
-    user_id: userId,
-    meal_name: mealName,
-    rating,
-    cuisine: cuisine || ''
-  }, { onConflict: 'user_id,meal_name' })
-  if (error) throw error
-}
-
-export async function loadMealPreferences(userId) {
-  if (!supabase) return { liked: [], disliked: [] }
-  const { data, error } = await supabase
-    .from('meal_preferences')
-    .select('meal_name, rating, cuisine')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(50)
-  if (error) throw error
-  const liked = (data||[]).filter(m => m.rating >= 4).map(m => m.meal_name)
-  const disliked = (data||[]).filter(m => m.rating <= 2).map(m => m.meal_name)
-  return { liked, disliked }
-}
-
-// ── WEEKLY SPEND ──
-export async function saveWeeklySpend(userId, weekKey, totalCost, budget, mealsCooked) {
-  if (!supabase) return
-  const { error } = await supabase.from('weekly_spend').upsert({
-    user_id: userId,
-    week_key: weekKey,
-    total_cost: totalCost,
-    budget,
-    meals_cooked: mealsCooked
-  }, { onConflict: 'user_id,week_key' })
-  if (error) throw error
-}
-
-export async function loadWeeklySpend(userId) {
-  if (!supabase) return []
-  const { data, error } = await supabase
-    .from('weekly_spend')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(8)
-  if (error) throw error
-  return data || []
-}
-
-// ── SEARCH HISTORY & EXTRA ITEMS ──
-export async function saveUserMeta(userId, key, value) {
-  if (!supabase) return
-  const { error } = await supabase.from('profiles').upsert({
-    id: userId,
-    [key]: value
-  }, { onConflict: 'id' })
-  if (error) throw error
-}
-
-export async function loadUserMeta(userId, key) {
-  if (!supabase) return null
-  const { data, error } = await supabase
-    .from('profiles')
-    .select(key)
-    .eq('id', userId)
-    .maybeSingle()
-  if (error) throw error
-  return data?.[key] || null
-}
-
-// ── RECIPE CACHE ──
-export async function saveRecipeCacheCloud(userId, planKey, recipeId, recipeData) {
-  if (!supabase) return
-  const { error } = await supabase.from('recipe_cache').upsert({
-    user_id: userId,
-    plan_key: planKey,
-    recipe_id: recipeId,
-    recipe_data: recipeData
-  }, { onConflict: 'user_id,recipe_id' })
-  if (error) throw error
-}
-
-export async function loadRecipeCacheCloud(userId, planKey) {
-  if (!supabase) return {}
-  const { data, error } = await supabase
-    .from('recipe_cache')
-    .select('recipe_id, recipe_data')
-    .eq('user_id', userId)
-    .eq('plan_key', planKey)
-  if (error) throw error
-  const cache = {}
-  ;(data || []).forEach(r => { cache[r.recipe_id] = r.recipe_data })
-  return cache
-}
-
-export async function clearRecipeCacheCloud(userId) {
-  if (!supabase) return
-  await supabase.from('recipe_cache').delete().eq('user_id', userId)
-}
-
-// ── RATINGS ──
-export async function submitRating(userId, recipeId, rating) {
-  const { error } = await supabase.from('recipe_ratings').upsert({
-    user_id: userId,
-    recipe_id: recipeId,
-    rating
-  }, { onConflict: 'user_id,recipe_id' })
-  if (error) throw error
-  await supabase.rpc('update_recipe_rating', { p_recipe_id: recipeId }).catch(() => {})
-}
-
-export async function loadUserRatings(userId) {
-  const { data, error } = await supabase
-    .from('recipe_ratings')
-    .select('recipe_id, rating')
-    .eq('user_id', userId)
-  if (error) throw error
-  const map = {}
-  ;(data || []).forEach(r => { map[r.recipe_id] = r.rating })
-  return map
-}
-
-// ── COMMENTS ──
-export async function loadComments(recipeId) {
-  const { data, error } = await supabase
-    .from('recipe_comments')
-    .select('*')
-    .eq('recipe_id', recipeId)
-    .order('created_at', { ascending: true })
-  if (error) throw error
-  return data || []
-}
-
-export async function submitComment(userId, recipeId, author, comment) {
-  const { error } = await supabase.from('recipe_comments').insert({
-    user_id: userId,
-    recipe_id: recipeId,
-    author,
-    comment
-  })
-  if (error) throw error
-  await supabase.rpc('update_comment_count', { p_recipe_id: recipeId }).catch(() => {})
-}
-
-// ── PLAN MANAGEMENT ──
-export async function getUserPlan(userId) {
-  if (!supabase) return { plan: 'free', isAdmin: false }
-  const { data } = await supabase
-    .from('profiles')
-    .select('plan, is_admin, plan_expires_at')
-    .eq('id', userId)
-    .maybeSingle()
-  return {
-    plan: data?.is_admin ? 'admin' : (data?.plan || 'free'),
-    isAdmin: data?.is_admin || false,
-    expiresAt: data?.plan_expires_at
-  }
-}
-
-export async function getUsage(userId) {
-  if (!supabase) return { generations: 0, recipes: 0 }
-  const now = new Date()
-  const month = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
-  const { data } = await supabase
-    .from('usage')
-    .select('generations, recipes')
-    .eq('user_id', userId)
-    .eq('month', month)
-    .maybeSingle()
-  return { generations: data?.generations || 0, recipes: data?.recipes || 0 }
-}
-
-export async function deleteComment(userId, commentId) {
-  const { error } = await supabase
-    .from('recipe_comments')
-    .delete()
-    .eq('id', commentId)
-    .eq('user_id', userId)
-  if (error) throw error
 }
