@@ -59,7 +59,7 @@ const getCached = async (dishName, country) => {
   try {
     const key = normalizeName(dishName)
     const { data, error } = await supabase
-      .from('recipe_cache')
+      .from('shared_recipe_cache')
       .select('recipe_data')
       .eq('dish_name', key)
       .eq('country', country)
@@ -75,7 +75,7 @@ const saveToCache = async (dishName, country, recipeData) => {
   if (!supabase) return
   try {
     const key = normalizeName(dishName)
-    await supabase.from('recipe_cache').upsert({
+    await supabase.from('shared_recipe_cache').upsert({
       dish_name: key,
       country,
       recipe_data: JSON.stringify(recipeData),
