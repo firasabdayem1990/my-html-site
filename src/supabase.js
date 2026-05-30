@@ -8,32 +8,8 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.warn('Supabase not configured — running in local mode')
 }
 
-// Custom storage that tries localStorage first, falls back to in-memory
-const customStorage = {
-  _mem: {},
-  getItem(key) {
-    try { return localStorage.getItem(key) } catch { return this._mem[key] ?? null }
-  },
-  setItem(key, value) {
-    try { localStorage.setItem(key, value) } catch { this._mem[key] = value }
-    try { sessionStorage.setItem(key, value) } catch {}
-  },
-  removeItem(key) {
-    try { localStorage.removeItem(key) } catch { delete this._mem[key] }
-    try { sessionStorage.removeItem(key) } catch {}
-  }
-}
-
 export const supabase = SUPABASE_URL
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: {
-        persistSession: true,
-        storageKey: 'smartbasket-auth',
-        storage: customStorage,
-        autoRefreshToken: true,
-        detectSessionInUrl: false
-      }
-    })
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   : null
 
 // ── AUTH ──
