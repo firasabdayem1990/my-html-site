@@ -20,6 +20,23 @@ export default function MainApp({ user, onSignOut }) {
   const state = useAppState(user)
 
   const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || null
+  const [usage, setUsage] = useState({ generations: 0, recipes: 0 })
+  const [userPlan, setUserPlan] = useState('free')
+
+  useEffect(() => {
+    if (!user) return
+    import('../supabase.js').then(({ getUserPlan, getUsage }) => {
+      getUserPlan(user.id).then(p => setUserPlan(p.plan))
+      getUsage(user.id).then(u => setUsage(u))
+    })
+  }, [user])
+
+  const planLimits = {
+    free: { plans: 1, recipes: 20 },
+    basic: { plans: 30, recipes: 400 },
+    admin: { plans: 999999, recipes: 999999 }
+  }
+  const limits = planLimits[userPlan] || planLimits.free
 
   // Request notification permission once
   useState(() => {
@@ -39,6 +56,21 @@ export default function MainApp({ user, onSignOut }) {
 
   return (
     <div className="shell">
+      {userPlan === 'free' && (usage.generations >= 1 || usage.recipes >= 15) && (
+        <div style={{background:'linear-gradient(135deg,#B8691A,#d4891f)',padding:'8px 14px',
+          display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
+          <div style={{fontSize:11,color:'#fff'}}>
+            {usage.generations >= 1 
+              ? '⚠️ Free plan: 1 meal plan used. Upgrade for 30/month!'
+              : `⚠️ ${usage.recipes}/20 recipes used this month`}
+          </div>
+          <button style={{padding:'4px 10px',background:'#fff',color:'var(--am)',border:'none',
+            borderRadius:99,fontSize:10,fontWeight:700,cursor:'pointer',flexShrink:0}}
+            onClick={()=>alert('Upgrade coming soon! Contact us at support@smartbasket.ai')}>
+            Upgrade $6.99/mo
+          </button>
+        </div>
+      )}
       <header className="hdr">
         <div className="brand">
           <div className="bmark">
