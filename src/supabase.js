@@ -275,3 +275,41 @@ export async function clearRecipeCacheCloud(userId) {
     await supabase.from('recipe_cache').delete().eq('user_id', userId)
   } catch(e) { console.warn('clearRecipeCacheCloud failed:', e.message) }
 }
+
+// ── MY COOKBOOK ──
+export async function loadAllUserRecipes(userId) {
+  if (!supabase) return []
+  try {
+    const { data, error } = await supabase
+      .from('recipe_cache')
+      .select('recipe_id, recipe_data, plan_key, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+    if (error) return []
+    // Deduplicate by recipe name
+    const seen = new Set()
+    return (data || []).filter(r => {
+      const recipe = typeof r.recipe_data === 'string' ? JSON.parse(r.recipe_data) : r.recipe_data
+      const name = (recipe?.dishName || recipe?.name || r.recipe_id || '').toLowerCase()
+      if (seen.has(name)) return false
+      seen.add(name)
+      return true
+    }).map(r => ({
+      rid: r.recipe_id,
+      planKey: r.plan_key,
+      savedAt: r.created_at,
+      recipe: typeof r.recipe_data === 'string' ? JSON.parse(r.recipe_data) : r.recipe_data
+    }))
+  } catch(e) { return [] }
+}
+
+export async function deleteUserRecipe(userId, planKey, recipeId) {
+  if (!supabase) return
+  try {
+    await supabase.from('recipe_cache')
+      .delete()
+      .eq('user_id', userId)
+      .eq('plan_key', planKey)
+      .eq('recipe_id', recipeId)
+  } catch(e) { console.warn('deleteUserRecipe failed:', e.message) }
+}
