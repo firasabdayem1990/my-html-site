@@ -49,6 +49,43 @@ const parseJSON = (raw) => {
   catch(e) { throw new Error('AI response was not in the expected format — please try generating again.') }
 }
 
+// ── CACHE HELPERS ──────────────────────────────────────────────────────────────
+
+const normalizeName = (name) =>
+  name.toLowerCase().trim().replace(/\s+/g, ' ')
+
+const getCached = async (dishName, country) => {
+  if (!supabase) return null
+  try {
+    const key = normalizeName(dishName)
+    const { data, error } = await supabase
+      .from('recipe_cache')
+      .select('recipe_data')
+      .eq('dish_name', key)
+      .eq('country', country)
+      .single()
+    if (error || !data) return null
+    return typeof data.recipe_data === 'string'
+      ? JSON.parse(data.recipe_data)
+      : data.recipe_data
+  } catch { return null }
+}
+
+const saveToCache = async (dishName, country, recipeData) => {
+  if (!supabase) return
+  try {
+    const key = normalizeName(dishName)
+    await supabase.from('recipe_cache').upsert({
+      dish_name: key,
+      country,
+      recipe_data: JSON.stringify(recipeData),
+      cached_at: new Date().toISOString()
+    }, { onConflict: 'dish_name,country' })
+  } catch { /* fail silently — cache is optional */ }
+}
+
+// ── PRICE CONTEXT ─────────────────────────────────────────────────────────────
+
 const COUNTRY_PRICE_CONTEXT = {
   'Lebanon': `Lebanon (USD 2025): Expensive due to imports & inflation.
 PROTEINS: chicken breast $6-8/kg, thighs $4-5/kg, ground beef $8-10/kg, fish $8-15/kg, eggs $3-4/dozen.
@@ -424,6 +461,8 @@ const getPriceContext = (country) => {
     `${country}: Use realistic local supermarket prices. Research current costs for staple ingredients in ${country}. Be accurate — never guess too low. Consider local cost of living.`
 }
 
+// ── MEAL PLAN (no caching — always fresh, personalized) ──────────────────────
+
 export async function generateMealPlan({ budget, adults, kids, people, currency, country, diet, health, restrictions, pantry, cuisines, cuisinePercs, calTarget, likedMeals, dislikedMeals }) {
   const restrictionLine = restrictions
     ? `CRITICAL: STRICT allergies/restrictions — NEVER include: ${restrictions}. Non-negotiable.`
@@ -534,7 +573,25 @@ Return ONLY this JSON:
   return parseJSON(raw)
 }
 
+// ── FETCH RECIPE — cache-first ────────────────────────────────────────────────
+
 export async function fetchRecipe({ name, cuisine, desc, people, adults, kids, diet, restrictions, country, currency, pantry }) {
+  // 1. Check cache first (pantry is personal so we always call AI for pantry matching,
+  //    but we cache the base recipe and apply pantry client-side)
+  const cached = await getCached(name, country)
+  if (cached) {
+    // Apply pantry flags on the cached recipe so inPantry stays accurate per user
+    if (pantry && pantry.length && cached.ingredients) {
+      const pantryNames = pantry.map(p => p.name.toLowerCase())
+      cached.ingredients = cached.ingredients.map(ing => ({
+        ...ing,
+        inPantry: pantryNames.some(pn => ing.name.toLowerCase().includes(pn) || pn.includes(ing.name.toLowerCase()))
+      }))
+    }
+    return cached
+  }
+
+  // 2. Not cached — call AI
   const effectivePortions = (adults || people) + ((kids || 0) * 0.5)
   const kidsNote = (kids || 0) > 0
     ? ` Note: ${kids} children — adjust spice levels, kids get half portions.`
@@ -557,21 +614,46 @@ export async function fetchRecipe({ name, cuisine, desc, people, adults, kids, d
     + ` For each ingredient:`
     + ` cookQty = EXACT cooking amount: "2 eggs", "1 tbsp olive oil", "3 garlic cloves".`
     + ` shopQty = MINIMUM store unit needed: if need 2 eggs → "1 pack (6 eggs)", if need 1 tbsp → "1 small bottle", if need 200g → "1 bag (500g)". Buy minimum necessary.`
-    + ` inPantry = true ONLY if ingredient EXACTLY matches this pantry list: [${pantryList || 'empty'}]. NEVER assume ANY ingredient — not salt, not pepper, not water, not oil — is available. If not in the list, inPantry must be false.`
+    + ` inPantry = true ONLY if ingredient EXACTLY matches this pantry list: [${pantryList || 'empty'}]. NEVER assume ANY ingredient is available. If not in the list, inPantry must be false.`
 
   const raw = await callAPI('recipe', {
     model: 'claude-sonnet-4-5-20250929',
     max_tokens: 3000,
     messages: [{ role: 'user', content: prompt }]
   })
-  return parseJSON(raw)
+  const result = parseJSON(raw)
+
+  // 3. Save to cache (without pantry-specific flags — pantry is applied per user above)
+  const toCache = {
+    ...result,
+    ingredients: result.ingredients?.map(ing => ({ ...ing, inPantry: false }))
+  }
+  await saveToCache(name, country, toCache)
+
+  return result
 }
 
+// ── SEARCH RECIPE — cache-first ───────────────────────────────────────────────
+
 export async function searchRecipe({ query, people, adults, kids, diet, restrictions, country, currency, pantry }) {
+  // 1. Check cache
+  const cached = await getCached(query, country)
+  if (cached) {
+    // Apply pantry flags per user
+    if (pantry && pantry.length && cached.ingredients) {
+      const pantryNames = pantry.map(p => p.name.toLowerCase())
+      cached.ingredients = cached.ingredients.map(ing => ({
+        ...ing,
+        inPantry: pantryNames.some(pn => ing.name.toLowerCase().includes(pn) || pn.includes(ing.name.toLowerCase()))
+      }))
+    }
+    return cached
+  }
+
+  // 2. Not cached — call AI
   const effectivePortions = (adults || people) + ((kids || 0) * 0.5)
   const priceContext = getPriceContext(country)
-  
-  // Build pantry context
+
   const pantryList = (pantry || []).map(p => {
     const qty = p.quantity ? `${p.quantity} ${p.unit||''}` : 'some'
     return `${p.name} (have: ${qty})`
@@ -588,7 +670,7 @@ export async function searchRecipe({ query, people, adults, kids, diet, restrict
     + ` For each ingredient:`
     + ` cookQty = EXACT amount needed for cooking: "2 eggs", "1 tbsp olive oil", "200g flour"`
     + ` shopQty = MINIMUM realistic store unit to buy: if need 2 eggs → "1 pack (6 eggs)", if need 1 tbsp olive oil → "1 small bottle (250ml)", if need 200g flour → "1 bag (500g)". Never buy more than necessary.`
-    + ` inPantry = true ONLY if ingredient EXACTLY matches this pantry list: [${pantryList || 'empty'}]. NEVER assume ANY ingredient is available — not salt, not pepper, not oil, not water, NOTHING. If pantry list is empty, ALL inPantry values must be false. Only set inPantry:true if the ingredient name clearly appears in the pantry list provided.`
+    + ` inPantry = true ONLY if ingredient EXACTLY matches this pantry list: [${pantryList || 'empty'}]. NEVER assume ANY ingredient is available. If pantry list is empty, ALL inPantry values must be false.`
     + ` IMPORTANT: Be smart about quantities — if recipe needs 2 eggs, shopQty is "1 pack (6)" not "1 dozen". If needs 1 tbsp oil, shopQty is "1 bottle" not "5 liters".`
 
   const raw = await callAPI('recipe', {
@@ -596,5 +678,14 @@ export async function searchRecipe({ query, people, adults, kids, diet, restrict
     max_tokens: 3000,
     messages: [{ role: 'user', content: prompt }]
   })
-  return parseJSON(raw)
+  const result = parseJSON(raw)
+
+  // 3. Save to cache (strip pantry-specific flags)
+  const toCache = {
+    ...result,
+    ingredients: result.ingredients?.map(ing => ({ ...ing, inPantry: false }))
+  }
+  await saveToCache(query, country, toCache)
+
+  return result
 }
