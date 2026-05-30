@@ -191,3 +191,24 @@ export async function toggleLike(userId, recipeId, isLiked) {
     await supabase.rpc('increment_likes', { recipe_id: recipeId }).catch(() => {})
   }
 }
+
+// ── RATINGS ──
+export async function submitRating(userId, recipeId, rating) {
+  const { error } = await supabase.from('recipe_ratings').upsert({
+    user_id: userId,
+    recipe_id: recipeId,
+    rating
+  }, { onConflict: 'user_id,recipe_id' })
+  if (error) throw error
+}
+
+export async function loadUserRatings(userId) {
+  const { data, error } = await supabase
+    .from('recipe_ratings')
+    .select('recipe_id, rating')
+    .eq('user_id', userId)
+  if (error) throw error
+  const map = {}
+  ;(data || []).forEach(r => { map[r.recipe_id] = r.rating })
+  return map
+}
