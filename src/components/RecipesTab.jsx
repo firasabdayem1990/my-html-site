@@ -55,10 +55,15 @@ export default function RecipesTab({ state }) {
   const [searchResult, setSearchResult] = useState(() => {
     try { return JSON.parse(localStorage.getItem('sb_last_search')) } catch(e) { return null }
   })
+  const [searchHistory, setSearchHistory] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('sb_search_history')) || [] } catch(e) { return [] }
+  })
   const [searchResultOpen, setSearchResultOpen] = useState(() => {
     try { const s = localStorage.getItem('sb_search_open'); return s === null ? true : s === 'true' } catch(e) { return true }
   })
   const [searching, setSearching] = useState(false)
+  const [addedToShopping, setAddedToShopping] = useState(false)
+  const [scaleFactors, setScaleFactors] = useState({})
   const [searchErr, setSearchErr] = useState('')
   const [community, setCommunity] = useState([])
   const [commLoaded, setCommLoaded] = useState(false)
@@ -96,9 +101,7 @@ export default function RecipesTab({ state }) {
       const saved = localStorage.getItem('sb_recipe_cache')
       if (saved) {
         const parsed = JSON.parse(saved)
-        if (parsed._planKey === planKey) {
-          setRecipeCache(p => ({...p, ...parsed}))
-        }
+        if (parsed._planKey === planKey) setRecipeCache(p => ({...p, ...parsed}))
       }
     } catch(e) {}
 
@@ -107,7 +110,6 @@ export default function RecipesTab({ state }) {
       loadRecipeCacheCloud(state.user.id, planKey).then(cloudCache => {
         if (cloudCache && Object.keys(cloudCache).length > 0) {
           setRecipeCache(p => ({...p, ...cloudCache}))
-          // Also sync back to localStorage
           try {
             const current = JSON.parse(localStorage.getItem('sb_recipe_cache') || '{}')
             localStorage.setItem('sb_recipe_cache', JSON.stringify({...current, ...cloudCache, _planKey: planKey}))
@@ -115,29 +117,19 @@ export default function RecipesTab({ state }) {
         }
       }).catch(() => {})
     }
-
     setRecipeCacheLoaded(true)
   }, [state.user, plan])
 
   // ── SAVE TO BOTH LAYERS ───────────────────────────────────────────────────
   const saveToAllLayers = async (cache, rid, recipe) => {
     const planKey = plan?.weekPlan?.[0]?.day || 'default'
-
-    // Layer 1: localStorage
-    try {
-      localStorage.setItem('sb_recipe_cache', JSON.stringify({...cache, _planKey: planKey}))
-    } catch(e) {}
-
-    // Layer 2: Supabase (fire and forget — don't block UI)
-    if (state.user) {
-      saveRecipeCacheCloud(state.user.id, planKey, rid, recipe).catch(() => {})
-    }
+    try { localStorage.setItem('sb_recipe_cache', JSON.stringify({...cache, _planKey: planKey})) } catch(e) {}
+    if (state.user) saveRecipeCacheCloud(state.user.id, planKey, rid, recipe).catch(() => {})
   }
 
   const toggleCard = async (rid, name, cuisine, desc) => {
     const isOpen = openCards[rid]
     setOpenCards(p => ({...p, [rid]: !isOpen}))
-
     if (!isOpen && !recipeCache[rid]) {
       setLoadingCard(rid)
       try {
@@ -172,10 +164,46 @@ export default function RecipesTab({ state }) {
       })
       setSearchResult(r)
       setSearchResultOpen(true)
+      // Save to history
+      setSearchHistory(prev => {
+        const filtered = prev.filter(h => h.dishName !== r.dishName)
+        const updated = [r, ...filtered].slice(0, 8)
+        try { localStorage.setItem('sb_search_history', JSON.stringify(updated)) } catch(e) {}
+        return updated
+      })
       try { localStorage.setItem('sb_search_open', 'true') } catch(e) {}
       try { localStorage.setItem('sb_last_search', JSON.stringify(r)) } catch(e) {}
     } catch(e) { setSearchErr(e.message) }
     setSearching(false)
+  }
+
+  // ── ADD SEARCH RESULT TO SHOPPING ────────────────────────────────────────
+  const addToShopping = () => {
+    if (!searchResult?.ingredients?.length) return
+    const { updateExtraItems, extraItems } = state
+    const FAM = [
+      {base:'egg',members:['egg','eggs']},{base:'chicken',members:['chicken','chicken breast','chicken thigh']},
+      {base:'garlic',members:['garlic','garlic clove','garlic cloves']},{base:'onion',members:['onion','onions','yellow onion','red onion']},
+      {base:'tomato',members:['tomato','tomatoes']},{base:'butter',members:['butter','unsalted butter','salted butter']},
+      {base:'milk',members:['milk','whole milk']},{base:'flour',members:['flour','plain flour','all purpose flour']},
+      {base:'rice',members:['rice','basmati rice','jasmine rice']},{base:'salt',members:['salt','sea salt','table salt']},
+      {base:'olive oil',members:['olive oil','extra virgin olive oil']},{base:'lemon',members:['lemon','lemons','lemon juice']},
+      {base:'pasta',members:['pasta','spaghetti','penne','fusilli']},{base:'spinach',members:['spinach','baby spinach']},
+    ]
+    const getF = (n) => { const l=(n||'').toLowerCase().trim(); for(const f of FAM){if(f.members.some(m=>l===m||l.startsWith(m+' ')||l.endsWith(' '+m)))return f.base} return l }
+    const newItems = {
+      dishName: searchResult.dishName || searchQ,
+      cuisine: searchResult.cuisine || '',
+      pricePerServing: searchResult.pricePerServing || 0,
+      ingredients: searchResult.ingredients.map(ing => {
+        const isInPantry = ing.inPantry || (state.pantry||[]).some(p => { const pf=getF(p.name),ingf=getF(ing.name||''); return pf===ingf&&pf!=='' })
+        return { name: ing.name, qty: ing.qty||'', estimatedCost: 0, inPantry: isInPantry }
+      })
+    }
+    const filtered = (extraItems || []).filter(e => e.dishName !== newItems.dishName)
+    updateExtraItems([...filtered, newItems])
+    setAddedToShopping(true)
+    setTimeout(() => setAddedToShopping(false), 2000)
   }
 
   const handleSubmitComm = async () => {
@@ -220,30 +248,106 @@ export default function RecipesTab({ state }) {
     ? plan.summary.totalEstimatedCost / (7 * 3 * (parseInt(prefs.people)||2))
     : 0
 
-  const RecipeBody = ({r}) => r ? (
+  // ── RECIPE BODY ───────────────────────────────────────────────────────────
+  const RecipeBody = ({r, rid}) => r ? (
     <div className="recipe-body" style={{display:'block',padding:'0 16px 16px'}}>
-      <div style={{display:'flex',gap:8,margin:'14px 0 4px',flexWrap:'wrap'}}>
+
+      {/* HISTORY & ORIGIN */}
+      {r.history && (
+        <div style={{display:'flex',gap:10,margin:'14px 0 12px',padding:'12px 14px',
+          background:'linear-gradient(135deg,#f5f0e8,#fdf8f0)',borderRadius:10,
+          border:'1px solid #e8d9b8',borderLeft:'3px solid #c4a35a'}}>
+          <span style={{fontSize:18,flexShrink:0,marginTop:1}}>📜</span>
+          <div>
+            <div style={{fontSize:10,fontWeight:700,color:'#8a6c2a',letterSpacing:.8,marginBottom:4}}>HISTORY & ORIGIN</div>
+            <div style={{fontSize:12,color:'#4a3c28',lineHeight:1.65}}>{r.history}</div>
+          </div>
+        </div>
+      )}
+
+      {/* SERVINGS + SCALE */}
+      <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',
+        background:'var(--bg2)',borderRadius:'var(--r)',marginBottom:10,
+        border:'1px solid var(--bdr)',flexWrap:'wrap'}}>
+        <span style={{fontSize:16}}>👥</span>
+        <div style={{flex:1}}>
+          <div style={{fontSize:12,fontWeight:700,color:'var(--t)'}}>Serves {parseInt(prefs.people)||2}</div>
+          <div style={{fontSize:11,color:'var(--t3)'}}>Based on your household in Setup tab</div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0,flexWrap:'wrap'}}>
+          <span style={{fontSize:11,color:'var(--t3)'}}>Scale:</span>
+          {[1,2,3,4,5,6,7,8].map(s=>(
+            <button key={s} onClick={()=>setScaleFactors(p=>({...p,[rid||'search']:s}))}
+              style={{padding:'3px 7px',fontSize:11,fontWeight:600,
+                background:(scaleFactors[rid||'search']||1)===s?'var(--g)':'var(--bg)',
+                color:(scaleFactors[rid||'search']||1)===s?'#fff':'var(--t2)',
+                border:'1px solid var(--bdr2)',borderRadius:6,cursor:'pointer',fontFamily:'var(--sans)'}}>
+              {s+'×'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* BADGES */}
+      <div style={{display:'flex',gap:8,marginBottom:10,flexWrap:'wrap'}}>
         {r.prepTime&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--bg2)',borderRadius:99,color:'var(--t2)'}}>⏱ Prep {r.prepTime}</span>}
         {r.cookTime&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--bg2)',borderRadius:99,color:'var(--t2)'}}>🔥 Cook {r.cookTime}</span>}
         {r.difficulty&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--bg2)',borderRadius:99,color:'var(--t2)'}}>📊 {r.difficulty}</span>}
-        {planCostPerMeal>0&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--al)',borderRadius:99,color:'var(--am)'}}>💰 {cur}{planCostPerMeal.toFixed(2)} /meal</span>}
+        {r.pricePerServing>0
+          ? <span style={{fontSize:11,padding:'4px 9px',background:'var(--al)',borderRadius:99,color:'var(--am)'}}>💰 {cur}{Number(r.pricePerServing).toFixed(2)} total ingredients</span>
+          : planCostPerMeal>0&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--al)',borderRadius:99,color:'var(--am)'}}>💰 {cur}{planCostPerMeal.toFixed(2)} /meal</span>
+        }
         {r.calories&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--gl)',borderRadius:99,color:'var(--gm)'}}>⚡ {r.calories} kcal</span>}
       </div>
 
       {/* MACROS */}
       <MacrosBar r={r} />
 
+      {/* INGREDIENTS */}
       {(r.ingredients||[]).length>0&&<>
         <div className="recipe-section-title">Ingredients</div>
         <div className="recipe-ingredients">
-          {r.ingredients.map((ing,i)=>(
-            <div key={i} className="recipe-ing">
-              <span className="recipe-ing-qty">{ing.qty||''}</span>
-              <span className="recipe-ing-name">{ing.name}{ing.note&&<span style={{fontSize:11,color:'var(--t3)'}}> — {ing.note}</span>}</span>
-            </div>
-          ))}
+          {r.ingredients.map((ing,i)=>{
+            const scale = scaleFactors[rid||'search'] || 1
+            const scaleQty = (qty) => {
+              if (!qty || scale === 1) return qty
+              const match = qty.match(/^([\d.\/]+)\s*(.*)$/)
+              if (!match) return qty
+              let num = match[1].includes('/')
+                ? match[1].split('/').reduce((a,b)=>parseFloat(a)/parseFloat(b))
+                : parseFloat(match[1])
+              const scaled = Math.round(num * scale * 4) / 4
+              return (scaled % 1 === 0 ? scaled : scaled.toFixed(2)) + (match[2] ? ' ' + match[2] : '')
+            }
+            // Pantry check
+            const pn = (n) => n.toLowerCase().trim()
+            const ingn = pn(ing.name||'')
+            const inPantry = ing.inPantry || (state.pantry||[]).some(p => {
+              const p2 = pn(p.name)
+              return p2===ingn || p2===ingn+'s' || ingn===p2+'s'
+            })
+            return (
+              <div key={i} className="recipe-ing" style={{flexDirection:'column',alignItems:'flex-start',gap:2}}>
+                <span className="recipe-ing-name">
+                  {ing.name}
+                  {ing.note&&<span style={{fontSize:11,color:'var(--t3)'}}> — {ing.note}</span>}
+                </span>
+                <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                  {ing.qty&&<span style={{fontSize:11,padding:'2px 8px',background:'var(--gl)',borderRadius:99,color:'var(--gm)',fontWeight:500}}>
+                    🍳 {scaleQty(ing.qty)}
+                  </span>}
+                  {inPantry
+                    ? <span style={{fontSize:11,padding:'2px 8px',background:'#f0faf0',borderRadius:99,color:'var(--g)',fontWeight:600,border:'1px solid rgba(31,78,26,.2)'}}>✅ In pantry</span>
+                    : null
+                  }
+                </div>
+              </div>
+            )
+          })}
         </div>
       </>}
+
+      {/* STEPS */}
       {(r.steps||[]).length>0&&<>
         <div className="recipe-section-title">Method</div>
         <div className="recipe-steps">
@@ -273,6 +377,8 @@ export default function RecipesTab({ state }) {
   return (
     <section className="sec on">
       <div className="pad" id="recipes-pad">
+
+        {/* SEARCH BOX */}
         <div className="add-box" style={{marginBottom:20}}>
           <div className="add-box-title">Search any recipe in the world</div>
           <div className="add-row" style={{marginBottom:8}}>
@@ -289,6 +395,7 @@ export default function RecipesTab({ state }) {
           {searchErr&&<div className="err-box" style={{marginTop:8}}>{searchErr}</div>}
         </div>
 
+        {/* SEARCH RESULT */}
         {searchResult&&(
           <div className={`recipe-card${searchResultOpen?' open':''}`} style={{marginBottom:20}}>
             <div className="recipe-header" onClick={()=>setSearchResultOpen(p=>{const next=!p;try{localStorage.setItem('sb_search_open',next)}catch(e){}return next;})} style={{cursor:'pointer'}}>
@@ -296,7 +403,7 @@ export default function RecipesTab({ state }) {
               <div className="recipe-hinfo">
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                   <div style={{fontSize:10,fontWeight:500,letterSpacing:.5,textTransform:'uppercase',color:'var(--t3)',marginBottom:3}}>{searchResult.cuisine||'World cuisine'}</div>
-                  <button onClick={e=>{e.stopPropagation();setSearchResult(null);try{localStorage.removeItem('sb_last_search')}catch(e2){}}} style={{background:'none',border:'none',cursor:'pointer',fontSize:11,color:'var(--t3)',fontFamily:'var(--sans)',padding:'2px 6px',borderRadius:6,marginBottom:3}}>✕ Clear</button>
+                  <button onClick={e=>{e.stopPropagation();setSearchResult(null);try{localStorage.removeItem('sb_last_search')}catch(e2){}}} style={{background:'none',border:'none',cursor:'pointer',fontSize:11,color:'var(--t3)',fontFamily:'var(--sans)',padding:'2px 6px',borderRadius:6}}>✕ Clear</button>
                 </div>
                 <div className="recipe-meal-name">{searchResult.dishName||searchQ}</div>
                 <div style={{display:'flex',gap:8,marginTop:6,flexWrap:'wrap'}}>
@@ -304,16 +411,46 @@ export default function RecipesTab({ state }) {
                   {searchResult.cookTime&&<span style={{fontSize:11,color:'var(--t3)'}}>🔥 {searchResult.cookTime}</span>}
                 </div>
                 <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:6}}>
-                  {searchResult.pricePerServing&&<span style={{fontSize:11,padding:'3px 9px',background:'var(--al)',borderRadius:99,color:'var(--am)'}}>💰 Est. {cur}{Number(searchResult.pricePerServing).toFixed(2)} full ingredient cost in {prefs.country||'Lebanon'}</span>}
+                  {searchResult.pricePerServing&&<span style={{fontSize:11,padding:'3px 9px',background:'var(--al)',borderRadius:99,color:'var(--am)'}}>💰 Est. {cur}{Number(searchResult.pricePerServing).toFixed(2)} in {prefs.country||'Lebanon'}</span>}
                   {searchResult.calories&&<span style={{fontSize:11,padding:'3px 9px',background:'var(--gl)',borderRadius:99,color:'var(--gm)'}}>⚡ {searchResult.calories} kcal</span>}
                 </div>
+                {/* ADD TO SHOPPING BUTTON */}
+                <button onClick={e=>{e.stopPropagation();addToShopping()}}
+                  style={{marginTop:8,display:'inline-flex',alignItems:'center',gap:5,padding:'6px 12px',
+                    background:addedToShopping?'var(--g)':'var(--bg2)',color:addedToShopping?'#fff':'var(--t2)',
+                    border:'1px solid',borderColor:addedToShopping?'var(--g)':'var(--bdr2)',
+                    borderRadius:99,cursor:'pointer',fontFamily:'var(--sans)',fontSize:11,fontWeight:600,transition:'all .2s'}}>
+                  {addedToShopping ? '✓ Added to shopping!' : '🛒 Add ingredients to shopping'}
+                </button>
               </div>
               <div className="recipe-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
             </div>
-            {searchResultOpen && <RecipeBody r={searchResult}/>}
+            {searchResultOpen && <RecipeBody r={searchResult} rid='search'/>}
           </div>
         )}
 
+        {/* SEARCH HISTORY */}
+        {searchHistory.length > 0 && (
+          <div style={{marginBottom:14}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+              <div style={{fontSize:11,fontWeight:600,color:'var(--t3)',letterSpacing:.5}}>RECENT SEARCHES</div>
+              <button onClick={()=>{setSearchHistory([]);try{localStorage.removeItem('sb_search_history')}catch(e){}}}
+                style={{fontSize:11,color:'var(--t3)',background:'none',border:'none',cursor:'pointer',fontFamily:'var(--sans)'}}>Clear</button>
+            </div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              {searchHistory.map((h,i)=>(
+                <button key={i} onClick={()=>{setSearchResult(h);setSearchResultOpen(true)}}
+                  style={{fontSize:11,padding:'4px 10px',background:'var(--bg2)',border:'1px solid var(--bdr)',
+                    borderRadius:99,cursor:'pointer',fontFamily:'var(--sans)',color:'var(--t2)',
+                    display:'flex',alignItems:'center',gap:4}}>
+                  {flag(h.cuisine)} {h.dishName}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* PLAN DIVIDER */}
         {planDays.length>0&&(
           <div style={{display:'flex',alignItems:'center',gap:10,margin:'18px 0'}}>
             <div className="or-divider" style={{flex:1,margin:0}}>from your meal plan</div>
@@ -329,6 +466,7 @@ export default function RecipesTab({ state }) {
           </div>
         )}
 
+        {/* EMPTY STATE */}
         {!planDays.length&&!searchResult&&(
           <div className="empty-v" style={{paddingTop:20}}>
             <div className="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div>
@@ -337,6 +475,7 @@ export default function RecipesTab({ state }) {
           </div>
         )}
 
+        {/* PLAN RECIPES */}
         {planDays.map(day=>(
           <div key={day.day}>
             <div className="recipe-day-sep">{day.day}</div>
@@ -364,7 +503,7 @@ export default function RecipesTab({ state }) {
                     <div className="recipe-body" style={{display:'block',padding:'0 16px 16px',borderTop:'1px solid var(--bdr)'}}>
                       {loadingCard===rid ? (
                         <div className="recipe-body-loading"><div className="spin"></div>Loading recipe…</div>
-                      ) : r ? <RecipeBody r={r}/> : (
+                      ) : r ? <RecipeBody r={r} rid={rid}/> : (
                         <div style={{padding:'16px 0',fontSize:13,color:'var(--t2)'}}>Tap to load recipe details.</div>
                       )}
                     </div>
@@ -375,6 +514,7 @@ export default function RecipesTab({ state }) {
           </div>
         ))}
 
+        {/* COMMUNITY SECTION */}
         <div style={{marginTop:28}}>
           <div style={{marginBottom:14}}>
             <div style={{fontFamily:'var(--serif)',fontSize:17,fontWeight:300,color:'var(--t)'}}>
