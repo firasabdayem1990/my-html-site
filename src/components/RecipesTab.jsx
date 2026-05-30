@@ -1,169 +1,74 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { fetchRecipe, searchRecipe } from '../ai.js'
-import { loadCommunityRecipes, submitCommunityRecipe, deleteCommunityRecipe, toggleLike, loadUserLikes, submitRating, loadUserRatings, loadComments, submitComment, deleteComment, saveRecipeCacheCloud, loadRecipeCacheCloud, clearRecipeCacheCloud, saveUserMeta } from '../supabase.js'
-import { supabase } from '../supabase.js'
+import { loadCommunityRecipes, submitCommunityRecipe, deleteCommunityRecipe, toggleLike, loadUserLikes } from '../supabase.js'
 
-const CUISINE_CODES = {
-  'Lebanese':'lb','Mediterranean':null,'Italian':'it','French':'fr',
-  'Mexican':'mx','Indian':'in','Japanese':'jp','Chinese':'cn','Thai':'th',
-  'Greek':'gr','Turkish':'tr','Moroccan':'ma','Syrian':'sy','Egyptian':'eg',
-  'American':'us','Korean':'kr','Spanish':'es','Persian':'ir','Ethiopian':'et',
-  'Brazilian':'br','Vietnamese':'vn','Indonesian':'id','Filipino':'ph',
-  'Pakistani':'pk','Jordanian':'jo','Palestinian':'ps','Iraqi':'iq',
-  'Saudi':'sa','Emirati':'ae','Tunisian':'tn','Armenian':'am','Georgian':'ge',
-  'Peruvian':'pe','Nigerian':'ng','Caribbean':null,'Uzbek':'uz',
-  'Latvian':'lv','Lithuanian':'lt','Estonian':'ee','Polish':'pl','Russian':'ru',
-  'Ukrainian':'ua','Czech':'cz','Hungarian':'hu','Romanian':'ro','Bulgarian':'bg',
-  'Serbian':'rs','Croatian':'hr','Portuguese':'pt','Dutch':'nl','Belgian':'be',
-  'Swedish':'se','Norwegian':'no','Danish':'dk','Finnish':'fi','Austrian':'at',
-  'Swiss':'ch','German':'de','Argentinian':'ar','Colombian':'co','Venezuelan':'ve',
-  'Chilean':'cl','Ecuadorian':'ec','Ghanaian':'gh','Kenyan':'ke','Tanzanian':'tz',
-  'Sudanese':'sd','Libyan':'ly','Algerian':'dz','Yemeni':'ye','Omani':'om',
-  'Kuwaiti':'kw','Bahraini':'bh','Qatari':'qa','Bangladeshi':'bd',
-  'Sri Lankan':'lk','Nepali':'np','Malaysian':'my','Singaporean':'sg',
-  'Israeli':'il','Australian':'au','South African':'za','New Zealand':'nz'
-}
-
-const FlagImg = ({code, size=16}) => (
-  <img src={`https://flagcdn.com/w20/${code.toLowerCase()}.png`}
-    width={size} height={size*0.75}
-    style={{borderRadius:2,objectFit:'cover',flexShrink:0,verticalAlign:'middle'}}
-    onError={e=>{e.target.style.display='none'}}
-    alt=""/>
-)
-
-const flag = (c) => {
-  const code = CUISINE_CODES[c]
-  if (code) return <FlagImg code={code} size={14}/>
-  return <span style={{fontSize:13}}>🍽️</span>
-}
+const CUISINE_FLAGS = {'Lebanese':'🇱🇧','Mediterranean':'🌊','Italian':'🇮🇹','French':'🇫🇷','Mexican':'🇲🇽','Indian':'🇮🇳','Japanese':'🇯🇵','Chinese':'🇨🇳','Thai':'🇹🇭','Greek':'🇬🇷','Turkish':'🇹🇷','Moroccan':'🇲🇦','Syrian':'🇸🇾','Korean':'🇰🇷','Spanish':'🇪🇸','Persian':'🇮🇷'}
+const flag = (c) => CUISINE_FLAGS[c] || '🍽️'
 
 const QUICK_RECIPES = ['Spaghetti Carbonara','Chicken Shawarma','Beef Tacos','Pad Thai','Knafeh','Sushi Rolls']
-const EMOJI_LIST = ['😋','🔥','❤️','👏','😍','🤤','👌','⭐','🥇','💯']
 
-// ── SMART SCALE FUNCTION ──────────────────────────────────────────────────────
-// How much 1 shop unit provides in cooking terms
-const SHOP_UNIT_YIELD = {
-  // Fresh produce — yield per piece
-  'lemon':        { cookUnit: 'tbsp', yield: 3 },   // 1 lemon ≈ 3 tbsp juice
-  'lemons':       { cookUnit: 'tbsp', yield: 3 },
-  'lime':         { cookUnit: 'tbsp', yield: 2 },
-  'limes':        { cookUnit: 'tbsp', yield: 2 },
-  'orange':       { cookUnit: 'tbsp', yield: 4 },
-  'oranges':      { cookUnit: 'tbsp', yield: 4 },
-  'garlic clove': { cookUnit: 'cloves', yield: 1 },
-  'garlic cloves':{ cookUnit: 'cloves', yield: 1 },
-  'head garlic':  { cookUnit: 'cloves', yield: 10 },
-  'head of garlic':{ cookUnit: 'cloves', yield: 10 },
-  'onion':        { cookUnit: 'g', yield: 150 },
-  'onions':       { cookUnit: 'g', yield: 150 },
-  'tomato':       { cookUnit: 'g', yield: 120 },
-  'tomatoes':     { cookUnit: 'g', yield: 120 },
-  'egg':          { cookUnit: 'eggs', yield: 1 },
-  'eggs':         { cookUnit: 'eggs', yield: 1 },
-  'potato':       { cookUnit: 'g', yield: 150 },
-  'potatoes':     { cookUnit: 'g', yield: 150 },
-  'carrot':       { cookUnit: 'g', yield: 80 },
-  'carrots':      { cookUnit: 'g', yield: 80 },
-  'avocado':      { cookUnit: 'g', yield: 150 },
+// ── MACROS BAR ────────────────────────────────────────────────────────────────
+const MacrosBar = ({ r }) => {
+  if (!r?.protein && !r?.carbs && !r?.fat) return null
+  const total = (r.protein||0) + (r.carbs||0) + (r.fat||0)
+  if (total === 0) return null
+  const pPct = Math.round((r.protein||0) / total * 100)
+  const cPct = Math.round((r.carbs||0) / total * 100)
+  const fPct = 100 - pPct - cPct
+
+  return (
+    <div style={{margin:'10px 0 6px',padding:'10px 12px',background:'var(--bg2)',borderRadius:'var(--r)',border:'1px solid var(--bdr)'}}>
+      <div style={{display:'flex',justifyContent:'space-between',marginBottom:6,flexWrap:'wrap',gap:6}}>
+        <span style={{fontSize:11,fontWeight:700,color:'var(--t)',letterSpacing:.3}}>MACROS <span style={{fontWeight:400,color:'var(--t3)'}}>per serving</span></span>
+        {r.fiber > 0 && <span style={{fontSize:11,color:'var(--t3)'}}>🌿 Fiber {r.fiber}g</span>}
+      </div>
+      {/* Bar */}
+      <div style={{display:'flex',borderRadius:99,overflow:'hidden',height:8,marginBottom:8}}>
+        <div style={{width:`${pPct}%`,background:'#3b82f6',transition:'width .3s'}}/>
+        <div style={{width:`${cPct}%`,background:'#f59e0b',transition:'width .3s'}}/>
+        <div style={{width:`${fPct}%`,background:'#ef4444',transition:'width .3s'}}/>
+      </div>
+      {/* Labels */}
+      <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+        <span style={{fontSize:11,display:'flex',alignItems:'center',gap:4}}>
+          <span style={{width:8,height:8,borderRadius:'50%',background:'#3b82f6',display:'inline-block',flexShrink:0}}/>
+          <span style={{fontWeight:600,color:'var(--t)'}}>{r.protein||0}g</span>
+          <span style={{color:'var(--t3)'}}>protein</span>
+        </span>
+        <span style={{fontSize:11,display:'flex',alignItems:'center',gap:4}}>
+          <span style={{width:8,height:8,borderRadius:'50%',background:'#f59e0b',display:'inline-block',flexShrink:0}}/>
+          <span style={{fontWeight:600,color:'var(--t)'}}>{r.carbs||0}g</span>
+          <span style={{color:'var(--t3)'}}>carbs</span>
+        </span>
+        <span style={{fontSize:11,display:'flex',alignItems:'center',gap:4}}>
+          <span style={{width:8,height:8,borderRadius:'50%',background:'#ef4444',display:'inline-block',flexShrink:0}}/>
+          <span style={{fontWeight:600,color:'var(--t)'}}>{r.fat||0}g</span>
+          <span style={{color:'var(--t3)'}}>fat</span>
+        </span>
+      </div>
+    </div>
+  )
 }
 
-const parseNum = (str) => {
-  if (!str) return null
-  str = str.trim()
-  if (str.includes('-')) {
-    const parts = str.split('-').map(s => parseFloat(s.trim()))
-    if (parts.every(p => !isNaN(p))) return (parts[0] + parts[1]) / 2
-  }
-  if (str.includes('/')) {
-    const parts = str.split('/').map(s => parseFloat(s.trim()))
-    if (parts.length === 2 && !parts.some(isNaN)) return parts[0] / parts[1]
-  }
-  return parseFloat(str)
-}
-
-const smartScaleQty = (shopQty, cookQty, scale) => {
-  if (!shopQty || scale === 1) return shopQty
-
-  const shopMatch = shopQty.match(/^([\d.\-\/]+)\s*(.*)$/)
-  if (!shopMatch) return shopQty
-  const shopNum = parseNum(shopMatch[1])
-  const shopRest = shopMatch[2].trim()
-  if (isNaN(shopNum)) return shopQty
-
-  const cookMatch = cookQty ? cookQty.match(/^([\d.\-\/]+)\s*(.*)$/) : null
-  const cookNum = cookMatch ? parseNum(cookMatch[1]) : null
-  const cookUnit = cookMatch ? cookMatch[2].toLowerCase().trim() : ''
-
-  // ── BULK CONTAINERS (jars, bottles, bags) ──
-  // Only multiply if cook amount is large (not tsp/tbsp/pinch)
-  const BULK = ['jar','bottle','bag','pack','container','box','tin','tube','block','loaf','bunch','can','carton']
-  const isBulk = BULK.some(u => shopRest.toLowerCase().includes(u))
-  if (isBulk && cookNum !== null) {
-    const SMALL = ['tsp','tbsp','teaspoon','tablespoon','pinch','ml','cl']
-    const isSmall = SMALL.some(u => cookUnit.includes(u))
-    if (isSmall) return '1 ' + shopRest  // 1 jar of cumin/salt/spice always enough
-    return Math.ceil(shopNum * scale) + ' ' + shopRest
-  }
-
-  // ── FRESH PRODUCE — use yield table ──
-  // Find if shopRest matches a known produce item
-  const shopRestLower = shopRest.toLowerCase()
-  const yieldKey = Object.keys(SHOP_UNIT_YIELD).find(k => {
-    const kl = k.toLowerCase()
-    return shopRestLower === kl ||
-      shopRestLower.startsWith(kl + ' ') ||
-      shopRestLower.endsWith(' ' + kl) ||
-      shopRestLower.includes(' ' + kl + ' ')
-  })
-
-  if (yieldKey && cookNum !== null) {
-    const yieldInfo = SHOP_UNIT_YIELD[yieldKey]
-    const scaledCookNum = cookNum * scale
-    const cookUnitMatch = cookUnit.includes(yieldInfo.cookUnit) ||
-      // Handle tbsp/tablespoon, tsp/teaspoon aliases
-      (yieldInfo.cookUnit === 'tbsp' && (cookUnit.includes('tbsp') || cookUnit.includes('tablespoon'))) ||
-      (yieldInfo.cookUnit === 'tsp' && (cookUnit.includes('tsp') || cookUnit.includes('teaspoon'))) ||
-      (yieldInfo.cookUnit === 'cloves' && cookUnit.includes('clove')) ||
-      (yieldInfo.cookUnit === 'g' && (cookUnit.includes('g') || cookUnit.includes('gram')))
-
-    if (cookUnitMatch) {
-      // How many shop units needed for scaled cook amount
-      const needed = Math.ceil(scaledCookNum / yieldInfo.yield)
-      return needed + ' ' + shopRest
-    }
-  }
-
-  // ── RANGE like "3-4 lemons" ──
-  if (shopMatch[1].includes('-')) {
-    const parts = shopMatch[1].split('-').map(s => parseFloat(s.trim()))
-    return Math.round(parts[0] * scale) + '-' + Math.round(parts[1] * scale) + ' ' + shopRest
-  }
-
-  // ── DEFAULT: multiply directly ──
-  const scaledNum = shopNum * scale
-  const rounded = scaledNum % 1 === 0 ? scaledNum : Math.ceil(scaledNum)
-  return rounded + (shopRest ? ' ' + shopRest : '')
-}
-
-export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
+export default function RecipesTab({ state }) {
   const { plan, prefs } = state
   const [openCards, setOpenCards] = useState({})
   const [recipeCache, setRecipeCache] = useState({})
   const [loadingCard, setLoadingCard] = useState(null)
   const [searchQ, setSearchQ] = useState('')
   const [searchResult, setSearchResult] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('sb_last_search')) } catch(e) { return null }
-  })
-  const [searchHistory, setSearchHistory] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('sb_search_history')) || [] } catch(e) { return [] }
+    try {
+      const saved = localStorage.getItem('sb_last_search')
+      return saved ? JSON.parse(saved) : null
+    } catch(e) { return null }
   })
   const [searchResultOpen, setSearchResultOpen] = useState(() => {
-    try { const s = localStorage.getItem('sb_search_open'); return s === null ? true : s === 'true' } catch(e) { return true }
+    try { 
+      const saved = localStorage.getItem('sb_search_open')
+      return saved === null ? true : saved === 'true'
+    } catch(e) { return true }
   })
   const [searching, setSearching] = useState(false)
-  const [addedToShopping, setAddedToShopping] = useState(false)
-  const [scaleFactors, setScaleFactors] = useState({})
   const [searchErr, setSearchErr] = useState('')
   const [community, setCommunity] = useState([])
   const [commLoaded, setCommLoaded] = useState(false)
@@ -171,26 +76,6 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
   const [commSubmitting, setCommSubmitting] = useState(false)
   const [commSuccess, setCommSuccess] = useState(false)
   const [likes, setLikes] = useState(new Set())
-  const [commFilter, setCommFilter] = useState({cuisine:'', diet:'', sort:'rating'})
-  const [commSearch, setCommSearch] = useState('')
-  const [userRatings, setUserRatings] = useState({})
-  const [comments, setComments] = useState({})
-  const [commentInputs, setCommentInputs] = useState({})
-  const [commentOpen, setCommentOpen] = useState({})
-  const [submittingComment, setSubmittingComment] = useState({})
-  const [editingComment, setEditingComment] = useState({})
-
-  useEffect(() => {
-    if (!targetRecipe) return
-    const { rid, meal } = targetRecipe
-    setOpenCards(p => ({ ...p, [rid]: true }))
-    if (!recipeCache[rid]) fetchAndCache(rid, meal.name, meal.cuisine, meal.desc)
-    setTimeout(() => {
-      const el = document.getElementById('rc_' + rid)
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 300)
-    if (onTargetHandled) onTargetHandled()
-  }, [targetRecipe])
 
   const loadComm = useCallback(async () => {
     if (commLoaded) return
@@ -198,12 +83,8 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
       const data = await loadCommunityRecipes()
       setCommunity(data)
       if (state.user) {
-        const [userLikes, ratings] = await Promise.all([
-          loadUserLikes(state.user.id),
-          loadUserRatings(state.user.id)
-        ])
+        const userLikes = await loadUserLikes(state.user.id)
         setLikes(userLikes)
-        setUserRatings(ratings)
       }
     } catch (e) {
       const raw = localStorage.getItem('sb_community_recipes')
@@ -212,27 +93,22 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
     setCommLoaded(true)
   }, [commLoaded, state.user])
 
-  useEffect(() => { loadComm() }, [])
+  useState(() => { loadComm() }, [])
 
   const [recipeCacheLoaded, setRecipeCacheLoaded] = useState(false)
-  useEffect(() => {
-    if (recipeCacheLoaded) return
+  if (!recipeCacheLoaded) {
     try {
       const saved = localStorage.getItem('sb_recipe_cache')
       if (saved) {
         const parsed = JSON.parse(saved)
         const planKey = plan?.weekPlan?.[0]?.day
-        if (parsed._planKey === planKey) setRecipeCache(p => ({...p, ...parsed}))
+        if (parsed._planKey === planKey) {
+          Object.assign(recipeCache, parsed)
+        }
       }
     } catch(e) {}
-    if (state.user && plan?.weekPlan?.[0]?.day) {
-      const planKey = plan.weekPlan[0].day
-      loadRecipeCacheCloud(state.user.id, planKey).then(cloudCache => {
-        if (Object.keys(cloudCache).length > 0) setRecipeCache(p => ({...p, ...cloudCache}))
-      }).catch(() => {})
-    }
     setRecipeCacheLoaded(true)
-  }, [state.user, plan])
+  }
 
   const saveRecipeCache = (cache) => {
     try {
@@ -241,42 +117,25 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
     } catch(e) {}
   }
 
-  const saveRecipeCacheEntry = async (rid, recipe) => {
-    if (!state.user) return
-    try {
-      const planKey = plan?.weekPlan?.[0]?.day || 'default'
-      await saveRecipeCacheCloud(state.user.id, planKey, rid, recipe)
-    } catch(e) { console.warn('Cloud cache save failed:', e.message) }
-  }
-
-  const fetchAndCache = async (rid, name, cuisine, desc) => {
-    setLoadingCard(rid)
-    try {
-      const r = await fetchRecipe({
-        name, cuisine, desc,
-        people: parseInt(prefs.people)||2,
-        adults: parseInt(prefs.adults)||2,
-        kids: parseInt(prefs.kids)||0,
-        diet: prefs.diet||'omnivore',
-        restrictions: prefs.restrictions||'',
-        country: prefs.country||'Lebanon',
-        currency: prefs.currency||'$'
-      })
-      setRecipeCache(prev => {
-        const newCache = {...prev, [rid]: r}
-        saveRecipeCache(newCache)
-        return newCache
-      })
-      await saveRecipeCacheEntry(rid, r)
-    } catch(e) {}
-    setLoadingCard(null)
-  }
-
   const toggleCard = async (rid, name, cuisine, desc) => {
     const isOpen = openCards[rid]
     setOpenCards(p => ({...p, [rid]: !isOpen}))
-    if (!isOpen && (!recipeCache[rid] || recipeCache[rid].history === undefined)) {
-      await fetchAndCache(rid, name, cuisine, desc)
+    if (!isOpen && !recipeCache[rid]) {
+      setLoadingCard(rid)
+      try {
+        const r = await fetchRecipe({
+          name, cuisine, desc,
+          people: parseInt(prefs.people)||2,
+          diet: prefs.diet||'omnivore',
+          restrictions: prefs.restrictions||'',
+          country: prefs.country||'Lebanon',
+          currency: prefs.currency||'$'
+        })
+        const newCache = {...recipeCache, [rid]: r}
+        setRecipeCache(newCache)
+        saveRecipeCache(newCache)
+      } catch(e) {}
+      setLoadingCard(null)
     }
   }
 
@@ -288,8 +147,6 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
       const r = await searchRecipe({
         query,
         people: parseInt(prefs.people)||2,
-        adults: parseInt(prefs.adults)||2,
-        kids: parseInt(prefs.kids)||0,
         diet: prefs.diet||'omnivore',
         restrictions: prefs.restrictions||'',
         country: prefs.country||'Lebanon',
@@ -297,106 +154,10 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
       })
       setSearchResult(r)
       setSearchResultOpen(true)
-      setSearchHistory(prev => {
-        const filtered = prev.filter(h => h.dishName !== r.dishName)
-        const updated = [r, ...filtered].slice(0, 10)
-        try { localStorage.setItem('sb_search_history', JSON.stringify(updated)) } catch(e) {}
-        if (state.user) saveUserMeta(state.user.id, 'search_history', updated).catch(() => {})
-        return updated
-      })
       try { localStorage.setItem('sb_search_open', 'true') } catch(e) {}
       try { localStorage.setItem('sb_last_search', JSON.stringify(r)) } catch(e) {}
     } catch(e) { setSearchErr(e.message) }
     setSearching(false)
-  }
-
-  const addToShopping = () => {
-    if (!searchResult?.ingredients?.length) return
-    const { updateExtraItems, extraItems } = state
-    const FAM2 = [
-      {base:'egg',members:['egg','eggs']},{base:'chicken',members:['chicken','chicken breast','chicken thigh']},
-      {base:'garlic',members:['garlic','garlic clove','garlic cloves']},{base:'onion',members:['onion','onions','yellow onion','red onion']},
-      {base:'tomato',members:['tomato','tomatoes']},{base:'butter',members:['butter','unsalted butter','salted butter']},
-      {base:'milk',members:['milk','whole milk']},{base:'flour',members:['flour','plain flour','all purpose flour']},
-      {base:'rice',members:['rice','basmati rice','jasmine rice']},{base:'salt',members:['salt','sea salt','table salt']},
-      {base:'olive oil',members:['olive oil','extra virgin olive oil']},{base:'lemon',members:['lemon','lemons','lemon juice']},
-      {base:'pasta',members:['pasta','spaghetti','penne','fusilli']},{base:'spinach',members:['spinach','baby spinach']},
-    ]
-    const getF = (n) => { const l=(n||'').toLowerCase().trim(); for(const f of FAM2){if(f.members.some(m=>l===m||l.startsWith(m+' ')||l.endsWith(' '+m)))return f.base} return l }
-    const newItems = {
-      dishName: searchResult.dishName || searchQ,
-      cuisine: searchResult.cuisine || '',
-      pricePerServing: searchResult.pricePerServing || 0,
-      ingredients: searchResult.ingredients.map(ing => {
-        const isInPantry = ing.inPantry || (state.pantry||[]).some(p => { const pf=getF(p.name),ingf=getF(ing.name||''); return pf===ingf&&pf!=='' })
-        return { name: ing.name, qty: ing.shopQty||ing.qty||'', cookQty: ing.cookQty||ing.qty||'', estimatedCost: 0, inPantry: isInPantry }
-      })
-    }
-    const filtered = (extraItems || []).filter(e => e.dishName !== newItems.dishName)
-    updateExtraItems([...filtered, newItems])
-    setAddedToShopping(true)
-    setTimeout(() => setAddedToShopping(false), 2000)
-  }
-
-  const handleRating = async (recipeId, rating) => {
-    if (!state.user) return alert('Sign in to rate recipes')
-    try {
-      await submitRating(state.user.id, recipeId, rating)
-      setUserRatings(p => ({...p, [recipeId]: rating}))
-      setCommunity(p => p.map(r => {
-        if (r.id !== recipeId) return r
-        const oldRating = userRatings[recipeId] || 0
-        const oldCount = r.rating_count || 0
-        const oldTotal = (r.avg_rating || 0) * oldCount
-        const newCount = oldRating ? oldCount : oldCount + 1
-        const newTotal = oldRating ? oldTotal - oldRating + rating : oldTotal + rating
-        return {...r, avg_rating: Math.round((newTotal/newCount)*10)/10, rating_count: newCount}
-      }))
-    } catch(e) {}
-  }
-
-  const loadRecipeComments = async (recipeId) => {
-    try { const data = await loadComments(recipeId); setComments(p => ({...p, [recipeId]: data})) } catch(e) {}
-  }
-
-  const handleCommentOpen = (recipeId) => {
-    const isOpen = commentOpen[recipeId]
-    setCommentOpen(p => ({...p, [recipeId]: !isOpen}))
-    if (!isOpen && !comments[recipeId]) loadRecipeComments(recipeId)
-  }
-
-  const handleSubmitComment = async (recipeId) => {
-    if (!state.user) return alert('Sign in to comment')
-    const text = commentInputs[recipeId]?.trim()
-    if (!text) return
-    setSubmittingComment(p => ({...p, [recipeId]: true}))
-    try {
-      const author = state.user?.user_metadata?.name || state.user?.email?.split('@')[0] || 'User'
-      await submitComment(state.user.id, recipeId, author, text)
-      setCommentInputs(p => ({...p, [recipeId]: ''}))
-      await loadRecipeComments(recipeId)
-      setCommunity(p => p.map(r => r.id===recipeId ? {...r, comment_count:(r.comment_count||0)+1} : r))
-    } catch(e) { await loadRecipeComments(recipeId) }
-    setSubmittingComment(p => ({...p, [recipeId]: false}))
-  }
-
-  const handleDeleteComment = async (recipeId, commentId) => {
-    if (!state.user) return
-    try {
-      if (!confirm('Delete your comment?')) return
-      await deleteComment(state.user.id, commentId)
-      setComments(p => ({...p, [recipeId]: (p[recipeId]||[]).filter(c => c.id !== commentId)}))
-      setCommunity(p => p.map(r => r.id===recipeId ? {...r, comment_count:Math.max(0,(r.comment_count||1)-1)} : r))
-    } catch(e) {}
-  }
-
-  const handleEditComment = async (recipeId, commentId, newText) => {
-    if (!state.user || !newText.trim()) return
-    try {
-      await supabase.from('recipe_comments').update({ comment: newText.trim() }).eq('id', commentId).eq('user_id', state.user.id)
-      setComments(p => ({...p, [recipeId]: (p[recipeId]||[]).map(c => c.id===commentId ? {...c, comment: newText.trim()} : c)}))
-      setEditingComment(p => { const n={...p}; delete n[commentId]; return n })
-    } catch(e) { alert('Could not edit comment') }
   }
 
   const handleSubmitComm = async () => {
@@ -405,7 +166,10 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
     try {
       const recipe = {
         ...commForm,
-        ingredients: commForm.ingredients.split('\n').filter(l=>l.trim()).map(l=>{ const m=l.match(/^([\d\/\.\s]+\w*)\s+(.+)$/); return m?{qty:m[1].trim(),name:m[2].trim()}:{qty:'',name:l.trim()} }),
+        ingredients: commForm.ingredients.split('\n').filter(l=>l.trim()).map(l=>{
+          const m = l.match(/^([\d\/\.\s]+\w*)\s+(.+)$/)
+          return m ? {qty:m[1].trim(),name:m[2].trim()} : {qty:'',name:l.trim()}
+        }),
         steps: commForm.steps.split('\n').filter(l=>l.trim())
       }
       if (state.user) await submitCommunityRecipe(state.user.id, recipe)
@@ -438,197 +202,34 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
     ? plan.summary.totalEstimatedCost / (7 * 3 * (parseInt(prefs.people)||2))
     : 0
 
-  const StarRating = ({recipeId, avg, count, userRating}) => (
-    <div style={{display:'flex',alignItems:'center',gap:6,margin:'6px 0'}}>
-      <div style={{display:'flex',gap:2}}>
-        {[1,2,3,4,5].map(star => (
-          <button key={star} onClick={()=>handleRating(recipeId, star)}
-            style={{background:'none',border:'none',cursor:'pointer',padding:'2px',fontSize:18,color:star<=(userRating||Math.round(avg||0))?'#f5a623':'#ddd',transition:'color .1s',lineHeight:1}}>★</button>
-        ))}
-      </div>
-      {avg > 0 && <span style={{fontSize:11,color:'var(--t3)',fontWeight:500}}>{avg} ({count})</span>}
-      {!avg && <span style={{fontSize:11,color:'var(--t3)'}}>No ratings yet</span>}
-    </div>
-  )
-
-  const renderComments = (recipeId) => {
-    const recipeComments = comments[recipeId] || []
-    const isOpen = commentOpen[recipeId]
-    const recipe = community.find(r => r.id === recipeId)
-    return (
-      <div style={{marginTop:10,borderTop:'1px solid var(--bdr)',paddingTop:10}}>
-        <button onClick={()=>handleCommentOpen(recipeId)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:'var(--sans)',fontSize:12,color:'var(--t2)',display:'flex',alignItems:'center',gap:5,padding:'4px 0'}}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13}}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          {isOpen ? 'Hide' : 'Show'} comments {recipe?.comment_count > 0 && `(${recipe.comment_count})`}
-        </button>
-        {isOpen && (
-          <div style={{marginTop:10}}>
-            {recipeComments.length === 0 && <div style={{fontSize:12,color:'var(--t3)',padding:'8px 0'}}>No comments yet. Be the first!</div>}
-            {recipeComments.map(c => (
-              <div key={c.id} style={{display:'flex',gap:8,marginBottom:10,alignItems:'flex-start'}}>
-                <div style={{width:28,height:28,borderRadius:'50%',background:'var(--g)',color:'#fff',fontSize:11,fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{(c.author||'?')[0].toUpperCase()}</div>
-                <div style={{flex:1,background:'var(--bg2)',borderRadius:10,padding:'8px 11px'}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
-                    <span style={{fontSize:11,fontWeight:600,color:'var(--t)'}}>{c.author}</span>
-                    <span style={{fontSize:10,color:'var(--t3)'}}>{timeAgo(c.created_at)}</span>
-                  </div>
-                  {editingComment[c.id] !== undefined ? (
-                    <div style={{marginTop:4}}>
-                      <textarea value={editingComment[c.id]} onChange={e=>setEditingComment(p=>({...p,[c.id]:e.target.value}))} rows="2"
-                        style={{width:'100%',padding:'6px 8px',fontSize:12,border:'1px solid var(--bdr2)',borderRadius:'var(--r)',background:'var(--bg)',color:'var(--t)',fontFamily:'var(--sans)',outline:'none',resize:'none',boxSizing:'border-box'}}/>
-                      <div style={{display:'flex',gap:6,marginTop:4}}>
-                        <button onClick={()=>handleEditComment(recipeId,c.id,editingComment[c.id])} style={{padding:'4px 10px',background:'var(--g)',color:'#fff',border:'none',borderRadius:'var(--r)',cursor:'pointer',fontFamily:'var(--sans)',fontSize:11,fontWeight:600}}>Save</button>
-                        <button onClick={()=>setEditingComment(p=>{const n={...p};delete n[c.id];return n})} style={{padding:'4px 10px',background:'none',border:'1px solid var(--bdr2)',borderRadius:'var(--r)',cursor:'pointer',fontFamily:'var(--sans)',fontSize:11,color:'var(--t2)'}}>Cancel</button>
-                      </div>
-                    </div>
-                  ) : <div style={{fontSize:13,color:'var(--t2)',lineHeight:1.5}}>{c.comment}</div>}
-                  {state.user && c.user_id===state.user.id && editingComment[c.id]===undefined && (
-                    <div style={{display:'flex',gap:8,marginTop:4}}>
-                      <button onClick={()=>setEditingComment(p=>({...p,[c.id]:c.comment}))} style={{background:'none',border:'none',cursor:'pointer',fontSize:10,color:'var(--g)',fontFamily:'var(--sans)'}}>✏️ Edit</button>
-                      <button onClick={()=>handleDeleteComment(recipeId,c.id)} style={{background:'none',border:'none',cursor:'pointer',fontSize:10,color:'var(--t3)',fontFamily:'var(--sans)'}}>Delete</button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-            {state.user && (
-              <div>
-                <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>
-                  {EMOJI_LIST.map(emoji => <button key={emoji} onClick={()=>setCommentInputs(p=>({...p,[recipeId]:(p[recipeId]||'')+emoji}))} style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:8,padding:'4px 7px',fontSize:16,cursor:'pointer',lineHeight:1}}>{emoji}</button>)}
-                </div>
-                <div style={{display:'flex',gap:8}}>
-                  <input type="text" placeholder="Add a comment…" value={commentInputs[recipeId]||''}
-                    onChange={e=>setCommentInputs(p=>({...p,[recipeId]:e.target.value}))}
-                    onKeyDown={e=>e.key==='Enter'&&handleSubmitComment(recipeId)}
-                    style={{flex:1,padding:'9px 12px',fontSize:13,border:'1px solid var(--bdr2)',borderRadius:'var(--r)',background:'var(--bg)',color:'var(--t)',fontFamily:'var(--sans)',outline:'none'}}/>
-                  <button onClick={()=>handleSubmitComment(recipeId)} disabled={submittingComment[recipeId]}
-                    style={{padding:'9px 14px',background:'var(--g)',color:'#fff',border:'none',borderRadius:'var(--r)',cursor:'pointer',fontFamily:'var(--sans)',fontSize:12,fontWeight:500,flexShrink:0}}>
-                    {submittingComment[recipeId] ? '…' : 'Post'}
-                  </button>
-                </div>
-              </div>
-            )}
-            {!state.user && <div style={{fontSize:12,color:'var(--t3)',padding:'6px 0'}}>Sign in to comment</div>}
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  const RecipeBody = ({r, rid}) => r ? (
-    <div style={{padding:'0 16px 16px'}}>
-      {r.history && (
-        <div style={{display:'flex',gap:10,margin:'14px 0 12px',padding:'12px 14px',background:'linear-gradient(135deg,#f5f0e8,#fdf8f0)',borderRadius:10,border:'1px solid #e8d9b8',borderLeft:'3px solid #c4a35a'}}>
-          <span style={{fontSize:18,flexShrink:0,marginTop:1}}>📜</span>
-          <div>
-            <div style={{fontSize:10,fontWeight:700,color:'#8a6c2a',letterSpacing:.8,marginBottom:4}}>HISTORY & ORIGIN</div>
-            <div style={{fontSize:12,color:'#4a3c28',lineHeight:1.65}}>{r.history}</div>
-          </div>
-        </div>
-      )}
-      <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',background:'var(--bg2)',borderRadius:'var(--r)',marginBottom:10,border:'1px solid var(--bdr)',flexWrap:'wrap'}}>
-        <span style={{fontSize:16}}>👥</span>
-        <div style={{flex:1}}>
-          <div style={{fontSize:12,fontWeight:700,color:'var(--t)'}}>
-            Serves {parseInt(prefs.adults)||2} adult{(parseInt(prefs.adults)||2)!==1?'s':''}
-            {parseInt(prefs.kids)>0?` + ${parseInt(prefs.kids)} kid${parseInt(prefs.kids)!==1?'s':''} (½ portions)`:''}
-          </div>
-          <div style={{fontSize:11,color:'var(--t3)'}}>Based on your household in Setup tab</div>
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
-          <span style={{fontSize:11,color:'var(--t3)'}}>Scale:</span>
-          {[1,2,3,4,5,6,7,8].map(s=>(
-            <button key={s} onClick={()=>setScaleFactors(p=>({...p,[rid||'search']:s}))}
-              style={{padding:'3px 8px',fontSize:11,fontWeight:600,
-                background:(scaleFactors[rid||'search']||1)===s?'var(--g)':'var(--bg)',
-                color:(scaleFactors[rid||'search']||1)===s?'#fff':'var(--t2)',
-                border:'1px solid var(--bdr2)',borderRadius:6,cursor:'pointer',fontFamily:'var(--sans)'}}>
-              {s+'×'}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div style={{display:'flex',gap:8,marginBottom:10,flexWrap:'wrap'}}>
+  const RecipeBody = ({r}) => r ? (
+    <div className="recipe-body" style={{display:'block',padding:'0 16px 16px'}}>
+      {/* BADGES */}
+      <div style={{display:'flex',gap:8,margin:'14px 0 4px',flexWrap:'wrap'}}>
         {r.prepTime&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--bg2)',borderRadius:99,color:'var(--t2)'}}>⏱ Prep {r.prepTime}</span>}
         {r.cookTime&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--bg2)',borderRadius:99,color:'var(--t2)'}}>🔥 Cook {r.cookTime}</span>}
         {r.difficulty&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--bg2)',borderRadius:99,color:'var(--t2)'}}>📊 {r.difficulty}</span>}
-        {r.pricePerServing>0
-          ? <span style={{fontSize:11,padding:'4px 9px',background:'var(--al)',borderRadius:99,color:'var(--am)'}}>💰 {cur}{Number(r.pricePerServing).toFixed(2)} total ingredients</span>
-          : planCostPerMeal>0&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--al)',borderRadius:99,color:'var(--am)'}}>💰 {cur}{planCostPerMeal.toFixed(2)} /meal</span>
-        }
-        {r.calories&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--gl)',borderRadius:99,color:'var(--gm)'}}>⚡ {r.calories} kcal/person</span>}
+        {planCostPerMeal>0&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--al)',borderRadius:99,color:'var(--am)'}}>💰 {cur}{planCostPerMeal.toFixed(2)} /meal</span>}
+        {r.calories&&<span style={{fontSize:11,padding:'4px 9px',background:'var(--gl)',borderRadius:99,color:'var(--gm)'}}>⚡ {r.calories} kcal</span>}
       </div>
+
+      {/* MACROS BAR */}
+      <MacrosBar r={r} />
+
+      {/* INGREDIENTS */}
       {(r.ingredients||[]).length>0&&<>
         <div className="recipe-section-title">Ingredients</div>
-        <div style={{fontSize:11,color:'var(--t3)',marginBottom:8,display:'flex',gap:12}}>
-          <span>🍳 = cooking amount</span>
-          <span>🛒 = what to buy</span>
-        </div>
         <div className="recipe-ingredients">
-          {r.ingredients.map((ing,i)=>{
-            const scale = scaleFactors[rid||'search'] || 1
-
-            // Cook qty scaling — always multiply directly
-            const scaleCookQty = (qty) => {
-              if (!qty || scale === 1) return qty
-              const match = qty.match(/^([\d.\/\-]+)\s*(.*)$/)
-              if (!match) return qty
-              const num = parseNum(match[1])
-              if (isNaN(num)) return qty
-              if (match[1].includes('-')) {
-                const parts = match[1].split('-').map(s => parseFloat(s.trim()))
-                const scaled = parts.map(p => { const s2 = p * scale; return s2 % 1 === 0 ? s2 : +s2.toFixed(2) })
-                return scaled[0] + '-' + scaled[1] + (match[2] ? ' ' + match[2] : '')
-              }
-              const scaled = num * scale
-              const rounded = scaled % 1 === 0 ? scaled : +scaled.toFixed(2)
-              return rounded + (match[2] ? ' ' + match[2] : '')
-            }
-
-            const pn = (n) => n.toLowerCase().trim()
-            const ingn = pn(ing.name||'')
-            const exactM = (state.pantry||[]).some(p => { const p2=pn(p.name); return p2===ingn||p2===ingn+'s'||ingn===p2+'s' })
-            const FAM3 = [
-              {base:'egg',m:['egg','eggs']},{base:'chicken',m:['chicken','chicken breast','chicken thigh']},
-              {base:'garlic',m:['garlic','garlic clove','garlic cloves']},{base:'onion',m:['onion','onions','yellow onion','red onion']},
-              {base:'tomato',m:['tomato','tomatoes']},{base:'butter',m:['butter','unsalted butter','salted butter']},
-              {base:'salt',m:['salt','sea salt','table salt']},{base:'black pepper',m:['black pepper','ground black pepper','pepper']},
-              {base:'olive oil',m:['olive oil','extra virgin olive oil']},{base:'rice',m:['rice','basmati rice','jasmine rice']},
-              {base:'pasta',m:['pasta','spaghetti','penne','fusilli']},{base:'spinach',m:['spinach','baby spinach']},
-              {base:'cream',m:['cream','heavy cream','double cream']},{base:'flour',m:['flour','plain flour','all purpose flour']},
-            ]
-            const getF3 = (n) => { const l=pn(n); for(const f of FAM3){if(f.m.some(m=>l===m||l.startsWith(m+' ')||l.endsWith(' '+m)))return f.base} return l }
-            const familyM = !exactM && (state.pantry||[]).some(p => getF3(p.name)===getF3(ing.name||'') && getF3(p.name)!=='')
-            const matched = ing.inPantry || exactM || familyM
-            const uncertain = !ing.inPantry && !exactM && familyM
-
-            return (
-              <div key={i} className="recipe-ing" style={{flexDirection:'column',alignItems:'flex-start',gap:2}}>
-                <div style={{display:'flex',alignItems:'center',gap:8,width:'100%'}}>
-                  <span className="recipe-ing-name" style={{flex:1}}>
-                    {ing.name}
-                    {ing.note&&<span style={{fontSize:11,color:'var(--t3)'}}> — {ing.note}</span>}
-                  </span>
-                </div>
-                <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                  <span style={{fontSize:11,padding:'2px 8px',background:'var(--gl)',borderRadius:99,color:'var(--gm)',fontWeight:500}}>
-                    🍳 {scaleCookQty(ing.cookQty||ing.qty||'—')}
-                  </span>
-                  {matched ? (
-                    <span style={{fontSize:11,padding:'2px 8px',background:uncertain?'#fffbf0':'#f0faf0',borderRadius:99,color:uncertain?'#8a6000':'var(--g)',fontWeight:600,border:uncertain?'1px solid #ffe066':'1px solid rgba(31,78,26,.2)'}}>
-                      {uncertain?'🤔 Check pantry':'✅ In pantry'}
-                    </span>
-                  ) : ing.shopQty ? (
-                    <span style={{fontSize:11,padding:'2px 8px',background:'var(--al)',borderRadius:99,color:'var(--am)',fontWeight:500}}>
-                      🛒 {smartScaleQty(ing.shopQty, ing.cookQty, scale)}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            )
-          })}
+          {r.ingredients.map((ing,i)=>(
+            <div key={i} className="recipe-ing">
+              <span className="recipe-ing-qty">{ing.qty||''}</span>
+              <span className="recipe-ing-name">{ing.name}{ing.note&&<span style={{fontSize:11,color:'var(--t3)'}}> — {ing.note}</span>}</span>
+            </div>
+          ))}
         </div>
       </>}
+
+      {/* STEPS */}
       {(r.steps||[]).length>0&&<>
         <div className="recipe-section-title">Method</div>
         <div className="recipe-steps">
@@ -640,10 +241,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
           ))}
         </div>
       </>}
-      {r.tip&&<div className="recipe-tip">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        {r.tip}
-      </div>}
+      {r.tip&&<div className="recipe-tip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>{r.tip}</div>}
     </div>
   ) : null
 
@@ -661,13 +259,16 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
   return (
     <section className="sec on">
       <div className="pad" id="recipes-pad">
+        {/* SEARCH */}
         <div className="add-box" style={{marginBottom:20}}>
           <div className="add-box-title">Search any recipe in the world</div>
           <div className="add-row" style={{marginBottom:8}}>
             <input type="text" placeholder="e.g. Beef Bourguignon, Pad Thai, Knafeh…" value={searchQ} onChange={e=>setSearchQ(e.target.value)} onKeyDown={e=>e.key==='Enter'&&doSearch()}/>
           </div>
           <div style={{display:'flex',gap:7,flexWrap:'wrap',marginBottom:10}}>
-            {QUICK_RECIPES.map(q=><button key={q} className="chip" onClick={()=>{setSearchQ(q);doSearch(q)}}>{q}</button>)}
+            {QUICK_RECIPES.map(q=>(
+              <button key={q} className="chip" onClick={()=>{setSearchQ(q);doSearch(q)}}>{q}</button>
+            ))}
           </div>
           <button className="cta" style={{marginTop:0}} onClick={()=>doSearch()} disabled={searching}>
             {searching?<><div className="spin" style={{width:16,height:16,borderWidth:2}}></div>&nbsp;Searching…</>:<><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Find recipe</>}
@@ -675,6 +276,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
           {searchErr&&<div className="err-box" style={{marginTop:8}}>{searchErr}</div>}
         </div>
 
+        {/* SEARCH RESULT */}
         {searchResult&&(
           <div className={`recipe-card${searchResultOpen?' open':''}`} style={{marginBottom:20}}>
             <div className="recipe-header" onClick={()=>setSearchResultOpen(p=>{const next=!p;try{localStorage.setItem('sb_search_open',next)}catch(e){}return next;})} style={{cursor:'pointer'}}>
@@ -682,90 +284,28 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
               <div className="recipe-hinfo">
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                   <div style={{fontSize:10,fontWeight:500,letterSpacing:.5,textTransform:'uppercase',color:'var(--t3)',marginBottom:3}}>{searchResult.cuisine||'World cuisine'}</div>
-                  <button onClick={e=>{e.stopPropagation();if(!confirm('Remove this search result?'))return;setSearchResult(null);try{localStorage.removeItem('sb_last_search')}catch(e2){}}} style={{background:'none',border:'none',cursor:'pointer',fontSize:11,color:'var(--t3)',fontFamily:'var(--sans)',padding:'2px 6px',borderRadius:6}}>✕ Clear</button>
+                  <button onClick={e=>{e.stopPropagation();setSearchResult(null);try{localStorage.removeItem('sb_last_search')}catch(e2){}}} style={{background:'none',border:'none',cursor:'pointer',fontSize:11,color:'var(--t3)',fontFamily:'var(--sans)',padding:'2px 6px',borderRadius:6,marginBottom:3}}>✕ Clear</button>
                 </div>
                 <div className="recipe-meal-name">{searchResult.dishName||searchQ}</div>
                 <div style={{display:'flex',gap:8,marginTop:6,flexWrap:'wrap'}}>
                   {searchResult.prepTime&&<span style={{fontSize:11,color:'var(--t3)'}}>⏱ {searchResult.prepTime}</span>}
                   {searchResult.cookTime&&<span style={{fontSize:11,color:'var(--t3)'}}>🔥 {searchResult.cookTime}</span>}
-                  <span style={{fontSize:11,color:'var(--t3)'}}>👥 {parseInt(prefs.adults)||2} adult{(parseInt(prefs.adults)||2)!==1?'s':''}{parseInt(prefs.kids)>0?` + ${prefs.kids} kid${parseInt(prefs.kids)!==1?'s':''}`:''}</span>
                 </div>
                 <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:6}}>
-                  {searchResult.pricePerServing&&<span style={{fontSize:11,padding:'3px 9px',background:'var(--al)',borderRadius:99,color:'var(--am)'}}>💰 Est. {cur}{Number(searchResult.pricePerServing).toFixed(2)} in {prefs.country||'Lebanon'}</span>}
+                  {searchResult.pricePerServing&&<span style={{fontSize:11,padding:'3px 9px',background:'var(--al)',borderRadius:99,color:'var(--am)'}}>💰 Est. {cur}{Number(searchResult.pricePerServing).toFixed(2)} full ingredient cost in {prefs.country||'Lebanon'}</span>}
                   {searchResult.calories&&<span style={{fontSize:11,padding:'3px 9px',background:'var(--gl)',borderRadius:99,color:'var(--gm)'}}>⚡ {searchResult.calories} kcal</span>}
                 </div>
-                <button onClick={e=>{e.stopPropagation();addToShopping()}}
-                  style={{marginTop:8,display:'inline-flex',alignItems:'center',gap:5,padding:'6px 12px',background:addedToShopping?'var(--g)':'var(--bg2)',color:addedToShopping?'#fff':'var(--t2)',border:'1px solid',borderColor:addedToShopping?'var(--g)':'var(--bdr2)',borderRadius:99,cursor:'pointer',fontFamily:'var(--sans)',fontSize:11,fontWeight:600,transition:'all .2s'}}>
-                  {addedToShopping ? '✓ Added to shopping!' : '🛒 Add ingredients to shopping'}
-                </button>
               </div>
               <div className="recipe-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
             </div>
-            {searchResultOpen && <RecipeBody r={searchResult} rid='search'/>}
-            {searchResultOpen && (() => {
-              const dishName = (searchResult.dishName || searchQ || '').toLowerCase()
-              const matches = community.filter(r => r.dish?.toLowerCase().includes(dishName) || dishName.includes(r.dish?.toLowerCase() || ''))
-              if (!matches.length) return null
-              return (
-                <div style={{padding:'10px 14px 14px',borderTop:'1px solid var(--bdr)'}}>
-                  <div style={{fontSize:11,fontWeight:700,color:'var(--t3)',letterSpacing:.5,marginBottom:8}}>👨‍🍳 {matches.length} COMMUNITY VERSION{matches.length>1?'S':''} OF THIS DISH</div>
-                  {matches.map(r => {
-                    const isOpen = openCards['comm_search_'+r.id]
-                    const isLiked = likes.has(r.id)
-                    return (
-                      <div key={r.id} style={{marginBottom:8,background:'var(--bg2)',borderRadius:'var(--r)',border:'1px solid var(--bdr)',overflow:'hidden'}}>
-                        <div style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',cursor:'pointer'}} onClick={()=>setOpenCards(p=>({...p,['comm_search_'+r.id]:!isOpen}))}>
-                          <div style={{width:32,height:32,borderRadius:'50%',background:'var(--g)',color:'#fff',fontSize:12,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{(r.author||'?')[0].toUpperCase()}</div>
-                          <div style={{flex:1}}>
-                            <div style={{fontSize:13,fontWeight:600,color:'var(--t)'}}>{r.author}'s {r.dish}</div>
-                            <div style={{display:'flex',gap:6,marginTop:2}}>
-                              {r.avg_rating>0&&<span style={{fontSize:11,color:'#f5a623'}}>⭐ {r.avg_rating}</span>}
-                              <span style={{fontSize:11,color:'var(--t3)'}}>❤️ {r.likes||0}</span>
-                              {r.cook_time&&<span style={{fontSize:11,color:'var(--t3)'}}>⏱ {r.cook_time}</span>}
-                            </div>
-                          </div>
-                          <button onClick={e=>{e.stopPropagation();handleLike(r.id)}} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,color:isLiked?'#e55':'var(--t3)',padding:'4px'}}>{isLiked?'❤️':'🤍'}</button>
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13,color:'var(--t3)',transform:isOpen?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s',flexShrink:0}}><polyline points="6 9 12 15 18 9"/></svg>
-                        </div>
-                        {isOpen&&(
-                          <div style={{padding:'0 12px 12px',borderTop:'1px solid var(--bdr)'}}>
-                            {(r.ingredients||[]).length>0&&<><div style={{fontSize:10,fontWeight:700,color:'var(--t3)',letterSpacing:.5,margin:'10px 0 6px'}}>INGREDIENTS</div>{r.ingredients.map((ing,i)=><div key={i} style={{fontSize:12,color:'var(--t2)',padding:'3px 0',borderBottom:'1px solid var(--bdr)',display:'flex',gap:8}}><span style={{color:'var(--t3)',minWidth:60}}>{ing.qty||''}</span><span>{ing.name||ing}</span></div>)}</>}
-                            {(r.steps||[]).length>0&&<><div style={{fontSize:10,fontWeight:700,color:'var(--t3)',letterSpacing:.5,margin:'10px 0 6px'}}>METHOD</div>{r.steps.map((s,i)=><div key={i} style={{display:'flex',gap:8,marginBottom:6,fontSize:12,color:'var(--t2)'}}><span style={{width:20,height:20,borderRadius:'50%',background:'var(--g)',color:'#fff',fontSize:10,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{i+1}</span><span style={{lineHeight:1.5}}>{s}</span></div>)}</>}
-                            {r.tip&&<div style={{marginTop:8,padding:'8px 10px',background:'var(--al)',borderRadius:'var(--r)',fontSize:11,color:'var(--am)'}}>💡 {r.tip}</div>}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )
-            })()}
+            {searchResultOpen && <RecipeBody r={searchResult}/>}
           </div>
         )}
 
-        {searchHistory.length > 1 && (
-          <div style={{marginBottom:16}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-              <div style={{fontSize:11,fontWeight:600,color:'var(--t3)',letterSpacing:.5}}>RECENT SEARCHES</div>
-              <button onClick={()=>{if(!confirm('Clear your recent search history?'))return;setSearchHistory([]);try{localStorage.removeItem('sb_search_history')}catch(e){}if(state.user)saveUserMeta(state.user.id,'search_history',[]).catch(()=>{})}} style={{fontSize:11,color:'var(--t3)',background:'none',border:'none',cursor:'pointer',fontFamily:'var(--sans)'}}>Clear all</button>
-            </div>
-            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-              {searchHistory.slice(1).map((h,i)=>(
-                <button key={i} onClick={()=>{setSearchResult(h);setSearchResultOpen(true)}} style={{fontSize:11,padding:'5px 10px',background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:99,cursor:'pointer',fontFamily:'var(--sans)',color:'var(--t2)',display:'flex',alignItems:'center',gap:4}}>
-                  {flag(h.cuisine)} {h.dishName}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* PLAN DIVIDER */}
+        {planDays.length>0&&<div className="or-divider" style={{margin:'18px 0'}}>from your meal plan</div>}
 
-        {planDays.length>0&&(
-          <div style={{display:'flex',alignItems:'center',gap:10,margin:'18px 0'}}>
-            <div className="or-divider" style={{flex:1,margin:0}}>from your meal plan</div>
-            <button onClick={async()=>{if(!confirm('Clear all cached recipes?'))return;try{localStorage.removeItem('sb_recipe_cache')}catch(e){}if(state.user)await clearRecipeCacheCloud(state.user.id).catch(()=>{});setRecipeCache({});setOpenCards({})}} style={{fontSize:11,padding:'4px 10px',background:'#fff3cd',border:'1px solid #e6c84a',borderRadius:99,color:'#856404',cursor:'pointer',fontFamily:'var(--sans)',fontWeight:600,whiteSpace:'nowrap',flexShrink:0}}>🔄 Reload recipes</button>
-          </div>
-        )}
-
+        {/* EMPTY STATE */}
         {!planDays.length&&!searchResult&&(
           <div className="empty-v" style={{paddingTop:20}}>
             <div className="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div>
@@ -774,6 +314,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
           </div>
         )}
 
+        {/* PLAN RECIPES */}
         {planDays.map(day=>(
           <div key={day.day}>
             <div className="recipe-day-sep">{day.day}</div>
@@ -798,12 +339,12 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                     <div className="recipe-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg></div>
                   </div>
                   {isOpen&&(
-                    <div style={{borderTop:'1px solid var(--bdr)'}}>
-                      {loadingCard===rid
-                        ? <div className="recipe-body-loading"><div className="spin"></div>Loading recipe…</div>
-                        : r ? <RecipeBody r={r} rid={rid}/>
-                        : <div style={{padding:'16px',fontSize:13,color:'var(--t2)'}}>Tap to load recipe details.</div>
-                      }
+                    <div className="recipe-body" style={{display:'block',padding:'0 16px 16px',borderTop:'1px solid var(--bdr)'}}>
+                      {loadingCard===rid ? (
+                        <div className="recipe-body-loading"><div className="spin"></div>Loading recipe…</div>
+                      ) : r ? <RecipeBody r={r}/> : (
+                        <div style={{padding:'16px 0',fontSize:13,color:'var(--t2)'}}>Tap to load recipe details.</div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -812,15 +353,17 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
           </div>
         ))}
 
+        {/* COMMUNITY SECTION */}
         <div style={{marginTop:28}}>
           <div style={{marginBottom:14}}>
             <div style={{fontFamily:'var(--serif)',fontSize:17,fontWeight:300,color:'var(--t)'}}>
               👨‍🍳 Community recipes
               {community.length>0&&<span style={{background:'var(--g)',color:'#fff',fontSize:10,fontWeight:600,padding:'2px 7px',borderRadius:99,marginLeft:8}}>{community.length}</span>}
             </div>
-            <div style={{fontSize:11,color:'var(--t3)',marginTop:2}}>Real recipes shared by real people — rate, comment & add yours</div>
+            <div style={{fontSize:11,color:'var(--t3)',marginTop:2}}>Real recipes shared by real people — add yours below</div>
           </div>
 
+          {/* SUBMIT FORM */}
           {!commSuccess?(
             <div className="comm-add-box">
               <div className="comm-add-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Share your recipe</div>
@@ -835,7 +378,9 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
               <div className="comm-field"><label>Ingredients (one per line)</label><textarea rows="4" value={commForm.ingredients} onChange={e=>setCommForm(p=>({...p,ingredients:e.target.value}))} placeholder="1 cup green lentils&#10;2 large onions"/></div>
               <div className="comm-field"><label>Steps (one per line)</label><textarea rows="4" value={commForm.steps} onChange={e=>setCommForm(p=>({...p,steps:e.target.value}))} placeholder="Rinse lentils and boil.&#10;Fry onions until golden."/></div>
               <div className="comm-field"><label>Chef's tip (optional)</label><input type="text" value={commForm.tip} onChange={e=>setCommForm(p=>({...p,tip:e.target.value}))} placeholder="e.g. The secret is extra crispy onions!"/></div>
-              <button className="cta" style={{marginTop:4}} onClick={handleSubmitComm} disabled={commSubmitting}>{commSubmitting?'Sharing…':'Share with the community'}</button>
+              <button className="cta" style={{marginTop:4}} onClick={handleSubmitComm} disabled={commSubmitting}>
+                {commSubmitting?'Sharing…':'Share with the community'}
+              </button>
             </div>
           ):(
             <div style={{textAlign:'center',padding:'16px',background:'var(--gl)',borderRadius:'var(--rl2)',marginBottom:16}}>
@@ -844,27 +389,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
             </div>
           )}
 
-          {community.length > 0 && (
-            <div style={{marginBottom:12}}>
-              <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
-                <div style={{position:'relative',flex:1,minWidth:140}}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13,position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',color:'var(--t3)',pointerEvents:'none'}}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                  <input type="text" placeholder="Search community…" value={commSearch} onChange={e=>setCommSearch(e.target.value)}
-                    style={{width:'100%',paddingLeft:30,padding:'8px 10px 8px 30px',fontSize:12,border:'1px solid var(--bdr2)',borderRadius:'var(--r)',background:'var(--bg)',color:'var(--t)',fontFamily:'var(--sans)',outline:'none',boxSizing:'border-box'}}/>
-                </div>
-                <div style={{fontSize:11,color:'var(--t3)',padding:'6px 10px',background:'var(--bg2)',borderRadius:'var(--r)',border:'1px solid var(--bdr)'}}>⭐ Sorted by quality score</div>
-              </div>
-              <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                {['All','Lebanese','Italian','Indian','Japanese','Mexican','Mediterranean','Other'].map(c=>(
-                  <button key={c} onClick={()=>setCommFilter(p=>({...p,cuisine:c==='All'?'':c}))}
-                    style={{padding:'4px 10px',fontSize:11,borderRadius:99,cursor:'pointer',fontFamily:'var(--sans)',fontWeight:commFilter.cuisine===(c==='All'?'':c)?600:400,background:commFilter.cuisine===(c==='All'?'':c)?'var(--g)':'var(--bg2)',color:commFilter.cuisine===(c==='All'?'':c)?'#fff':'var(--t2)',border:`1px solid ${commFilter.cuisine===(c==='All'?'':c)?'var(--g)':'var(--bdr)'}`}}>
-                    {c}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
+          {/* COMMUNITY FEED */}
           <div>
             {community.length===0&&commLoaded&&(
               <div className="comm-empty">
@@ -872,74 +397,56 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                 No community recipes yet. Be the first!
               </div>
             )}
-            {[...community]
-              .filter(r => {
-                if (commSearch && !r.dish?.toLowerCase().includes(commSearch.toLowerCase()) && !r.author?.toLowerCase().includes(commSearch.toLowerCase())) return false
-                if (commFilter.cuisine && r.cuisine !== commFilter.cuisine) return false
-                return true
-              })
-              .sort((a,b) => {
-                const scoreA = (a.avg_rating||0)*2 + (a.likes||0)*0.5 + (a.comment_count||0)*0.3
-                const scoreB = (b.avg_rating||0)*2 + (b.likes||0)*0.5 + (b.comment_count||0)*0.3
-                return scoreB - scoreA
-              })
-              .map(r=>{
-                const isOpen = openCards['comm_'+r.id]
-                const isLiked = likes.has(r.id)
-                const userRating = userRatings[r.id] || 0
-                return (
-                  <div key={r.id} className={`comm-card${isOpen?' open':''}`}>
-                    <div className="comm-card-hdr" onClick={()=>setOpenCards(p=>({...p,['comm_'+r.id]:!isOpen}))}>
-                      <div className="comm-avatar">{(r.author||'?')[0].toUpperCase()}</div>
-                      <div className="comm-info">
-                        <div className="comm-dish">{flag(r.cuisine)} {r.dish}</div>
-                        <div className="comm-meta">
-                          <span>by <strong>{r.author}</strong></span>
-                          {r.cuisine&&<span className="comm-tag">{r.cuisine}</span>}
-                          {(r.cook_time||r.cookTime)&&<span>⏱ {r.cook_time||r.cookTime}</span>}
-                          <span style={{color:'var(--t3)'}}>{timeAgo(r.created_at)}</span>
-                        </div>
-                        <StarRating recipeId={r.id} avg={r.avg_rating} count={r.rating_count} userRating={userRating}/>
-                      </div>
-                      <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6,flexShrink:0}}>
-                        <button className={`comm-like-btn${isLiked?' liked':''}`} onClick={e=>{e.stopPropagation();handleLike(r.id)}}>
-                          <svg viewBox="0 0 24 24" fill={isLiked?'var(--rd)':'none'} stroke={isLiked?'var(--rd)':'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-                          {r.likes||0}
-                        </button>
-                        {r.comment_count > 0 && (
-                          <span style={{fontSize:10,color:'var(--t3)',display:'flex',alignItems:'center',gap:2}}>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:11,height:11}}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                            {r.comment_count}
-                          </span>
-                        )}
+            {community.map(r=>{
+              const isOpen = openCards['comm_'+r.id]
+              const isLiked = likes.has(r.id)
+              return (
+                <div key={r.id} className={`comm-card${isOpen?' open':''}`}>
+                  <div className="comm-card-hdr" onClick={()=>setOpenCards(p=>({...p,['comm_'+r.id]:!isOpen}))}>
+                    <div className="comm-avatar">{(r.author||'?')[0].toUpperCase()}</div>
+                    <div className="comm-info">
+                      <div className="comm-dish">{flag(r.cuisine)} {r.dish}</div>
+                      <div className="comm-meta">
+                        <span>by <strong>{r.author}</strong></span>
+                        {r.cuisine&&<span className="comm-tag">{r.cuisine}</span>}
+                        {(r.cook_time||r.cookTime)&&<span>⏱ {r.cook_time||r.cookTime}</span>}
+                        <span style={{color:'var(--t3)'}}>{timeAgo(r.created_at)}</span>
                       </div>
                     </div>
-                    {isOpen&&(
-                      <div className="comm-body">
-                        {(r.ingredients||[]).length>0&&<>
-                          <div className="comm-section-lbl">Ingredients</div>
-                          <div className="comm-ing-list">
-                            {r.ingredients.map((ing,i)=><div key={i} className="comm-ing"><span className="comm-ing-qty">{ing.qty||''}</span><span>{ing.name||ing}</span></div>)}
-                          </div>
-                        </>}
-                        {(r.steps||[]).length>0&&<>
-                          <div className="comm-section-lbl">Method</div>
-                          <div className="comm-steps">
-                            {r.steps.map((s,i)=><div key={i} className="comm-step"><span className="comm-step-num">{i+1}</span><span className="comm-step-text">{s}</span></div>)}
-                          </div>
-                        </>}
-                        {r.tip&&<div className="comm-author-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>{r.tip}</div>}
-                        {state.user&&r.user_id===state.user.id&&(
-                          <button className="comm-del-btn" onClick={async()=>{if(!confirm('Delete your recipe "'+r.dish+'"?'))return;if(!confirm('Are you sure? This cannot be undone.'))return;await deleteCommunityRecipe(state.user.id,r.id);setCommunity(p=>p.filter(x=>x.id!==r.id))}}>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>Delete my recipe
-                          </button>
-                        )}
-                        {renderComments(r.id)}
-                      </div>
-                    )}
+                    <button className={`comm-like-btn${isLiked?' liked':''}`} onClick={e=>{e.stopPropagation();handleLike(r.id)}}>
+                      <svg viewBox="0 0 24 24" fill={isLiked?'var(--rd)':'none'} stroke={isLiked?'var(--rd)':'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                      {r.likes||0}
+                    </button>
                   </div>
-                )
-              })}
+                  {isOpen&&(
+                    <div className="comm-body">
+                      {(r.ingredients||[]).length>0&&<>
+                        <div className="comm-section-lbl">Ingredients</div>
+                        <div className="comm-ing-list">
+                          {r.ingredients.map((ing,i)=>(
+                            <div key={i} className="comm-ing"><span className="comm-ing-qty">{ing.qty||''}</span><span>{ing.name||ing}</span></div>
+                          ))}
+                        </div>
+                      </>}
+                      {(r.steps||[]).length>0&&<>
+                        <div className="comm-section-lbl">Method</div>
+                        <div className="comm-steps">
+                          {r.steps.map((s,i)=>(
+                            <div key={i} className="comm-step"><span className="comm-step-num">{i+1}</span><span className="comm-step-text">{s}</span></div>
+                          ))}
+                        </div>
+                      </>}
+                      {r.tip&&<div className="comm-author-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>{r.tip}</div>}
+                      {state.user&&r.user_id===state.user.id&&(
+                        <button className="comm-del-btn" onClick={async()=>{if(confirm('Delete?')){await deleteCommunityRecipe(state.user.id,r.id);setCommunity(p=>p.filter(x=>x.id!==r.id))}}}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>Delete my recipe
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
       </div>
