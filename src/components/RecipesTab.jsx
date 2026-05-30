@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { fetchRecipe, searchRecipe } from '../ai.js'
-import { loadCommunityRecipes, submitCommunityRecipe, deleteCommunityRecipe, toggleLike, loadUserLikes, saveRecipeCacheCloud, loadRecipeCacheCloud, clearRecipeCacheCloud } from '../supabase.js'
+import { loadCommunityRecipes, submitCommunityRecipe, deleteCommunityRecipe, toggleLike, loadUserLikes, saveRecipeCacheCloud, loadRecipeCacheCloud, clearRecipeCacheCloud, loadAllUserRecipes, deleteUserRecipe } from '../supabase.js'
 import { supabase } from '../supabase.js'
 
 const CUISINE_FLAGS = {'Lebanese':'🇱🇧','Mediterranean':'🌊','Italian':'🇮🇹','French':'🇫🇷','Mexican':'🇲🇽','Indian':'🇮🇳','Japanese':'🇯🇵','Chinese':'🇨🇳','Thai':'🇹🇭','Greek':'🇬🇷','Turkish':'🇹🇷','Moroccan':'🇲🇦','Syrian':'🇸🇾','Korean':'🇰🇷','Spanish':'🇪🇸','Persian':'🇮🇷'}
@@ -72,6 +72,10 @@ export default function RecipesTab({ state }) {
   const [commSubmitting, setCommSubmitting] = useState(false)
   const [commSuccess, setCommSuccess] = useState(false)
   const [likes, setLikes] = useState(new Set())
+  const [cookbook, setCookbook] = useState([])
+  const [cookbookLoaded, setCookbookLoaded] = useState(false)
+  const [cookbookOpen, setCookbookOpen] = useState(false)
+  const [cookbookCards, setCookbookCards] = useState({})
 
   const loadComm = useCallback(async () => {
     if (commLoaded) return
@@ -90,6 +94,15 @@ export default function RecipesTab({ state }) {
   }, [commLoaded, state.user])
 
   useEffect(() => { loadComm() }, [])
+
+  // ── LOAD COOKBOOK ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (cookbookLoaded || !state.user) return
+    loadAllUserRecipes(state.user.id).then(recipes => {
+      setCookbook(recipes)
+      setCookbookLoaded(true)
+    }).catch(() => setCookbookLoaded(true))
+  }, [state.user, cookbookLoaded])
 
   // ── 2-LAYER CACHE ────────────────────────────────────────────────────────
   const [recipeCacheLoaded, setRecipeCacheLoaded] = useState(false)
@@ -183,6 +196,15 @@ export default function RecipesTab({ state }) {
       })
       try { localStorage.setItem('sb_search_open', 'true') } catch(e) {}
       try { localStorage.setItem('sb_last_search', JSON.stringify(r)) } catch(e) {}
+      // Save to user's cookbook
+      if (state.user && r) {
+        const dishName = (r.dishName || query).toLowerCase().trim().replace(/\s+/g,' ')
+        saveRecipeCacheCloud(state.user.id, 'search', dishName, r).catch(() => {})
+        setCookbook(prev => {
+          const filtered = prev.filter(c => c.rid !== dishName)
+          return [{ rid: dishName, planKey: 'search', savedAt: new Date().toISOString(), recipe: r }, ...filtered]
+        })
+      }
     } catch(e) { setSearchErr(e.message) }
     setSearching(false)
   }
@@ -602,6 +624,66 @@ export default function RecipesTab({ state }) {
             })}
           </div>
         ))}
+
+        {/* MY COOKBOOK */}
+        {state.user && cookbook.length > 0 && (
+          <div style={{marginTop:28,marginBottom:8}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12,cursor:'pointer'}}
+              onClick={()=>setCookbookOpen(p=>!p)}>
+              <div>
+                <div style={{fontFamily:'var(--serif)',fontSize:17,fontWeight:300,color:'var(--t)'}}>
+                  📖 My Cookbook
+                  <span style={{background:'var(--g)',color:'#fff',fontSize:10,fontWeight:600,padding:'2px 7px',borderRadius:99,marginLeft:8}}>{cookbook.length}</span>
+                </div>
+                <div style={{fontSize:11,color:'var(--t3)',marginTop:2}}>All recipes you've viewed — tap to expand</div>
+              </div>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                style={{width:16,height:16,color:'var(--t3)',transform:cookbookOpen?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s',flexShrink:0}}>
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </div>
+            {cookbookOpen && (
+              <div>
+                {cookbook.map((item, i) => {
+                  const r = item.recipe
+                  if (!r) return null
+                  const name = r.dishName || r.name || item.rid || 'Recipe'
+                  const cuisine = r.cuisine || ''
+                  const isOpen = cookbookCards[item.rid]
+                  return (
+                    <div key={i} className={`recipe-card${isOpen?' open':''}`} style={{marginBottom:8}}>
+                      <div className="recipe-header" onClick={()=>setCookbookCards(p=>({...p,[item.rid]:!isOpen}))}
+                        style={{cursor:'pointer'}}>
+                        <span className="recipe-flag">{flag(cuisine)}</span>
+                        <div className="recipe-hinfo">
+                          <div style={{fontSize:10,fontWeight:500,letterSpacing:.5,textTransform:'uppercase',color:'var(--t3)',marginBottom:2}}>{cuisine||'Recipe'}</div>
+                          <div className="recipe-meal-name">{name}</div>
+                          <div style={{display:'flex',gap:8,marginTop:4,flexWrap:'wrap'}}>
+                            {r.prepTime&&<span style={{fontSize:11,color:'var(--t3)'}}>⏱ {r.prepTime}</span>}
+                            {r.calories&&<span style={{fontSize:11,color:'var(--t3)'}}>⚡ {r.calories} kcal</span>}
+                            {r.protein&&<span style={{fontSize:11,color:'var(--t3)'}}>💪 {r.protein}g protein</span>}
+                          </div>
+                        </div>
+                        <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
+                          <div className="recipe-toggle">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                          </div>
+                          <button onClick={e=>{
+                            e.stopPropagation()
+                            if(!confirm(`Remove "${name}" from your cookbook?`)) return
+                            deleteUserRecipe(state.user.id, item.planKey, item.rid).catch(()=>{})
+                            setCookbook(prev => prev.filter(c => c.rid !== item.rid))
+                          }} style={{background:'none',border:'none',cursor:'pointer',fontSize:10,color:'var(--t3)',fontFamily:'var(--sans)',padding:'2px'}}>✕</button>
+                        </div>
+                      </div>
+                      {isOpen && <RecipeBody r={r} rid={item.rid}/>}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* COMMUNITY SECTION */}
         <div style={{marginTop:28}}>
