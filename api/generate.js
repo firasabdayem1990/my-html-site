@@ -1,81 +1,91 @@
-import Anthropic from '@anthropic-ai/sdk'
+// api/generate.js — meal plan generator with plan limits
 import { createClient } from '@supabase/supabase-js'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_KEY })
-const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
-
 const PLAN_LIMITS = {
-  free: { plans: 1 },
-  basic: { plans: 30 },
-  admin: { plans: 999999 }
+  free: 1,
+  basic: 30,
+  admin: 999999
 }
 
 export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  // Get user from auth token
+  if (!process.env.ANTHROPIC_KEY) return res.status(500).json({ error: 'ANTHROPIC_KEY not configured' })
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_SERVICE_KEY
+  const month = new Date().toISOString().slice(0, 7)
+  const token = req.headers['authorization']?.replace('Bearer ', '')
+
   let userId = null
   let userPlan = 'free'
-  const authHeader = req.headers.authorization
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.slice(7)
-    const { data: { user } } = await supabase.auth.getUser(token)
-    if (user) {
-      userId = user.id
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('plan, is_admin')
-        .eq('id', userId)
-        .maybeSingle()
-      if (profile?.is_admin) userPlan = 'admin'
-      else if (profile?.plan === 'basic') userPlan = 'basic'
-    }
+
+  if (token && supabaseUrl && supabaseKey) {
+    try {
+      const sb = createClient(supabaseUrl, supabaseKey)
+      const { data: { user } } = await sb.auth.getUser(token)
+      if (user) {
+        userId = user.id
+        const { data: profile } = await sb.from('profiles')
+          .select('plan, is_admin').eq('id', user.id).maybeSingle()
+        if (profile?.is_admin) userPlan = 'admin'
+        else if (profile?.plan === 'basic') userPlan = 'basic'
+      }
+    } catch(e) { console.warn('Auth failed:', e.message) }
   }
 
   if (!userId) {
     return res.status(401).json({ error: { message: 'Please sign in to generate meal plans.' } })
   }
 
-  // ── Check quota ──
-  const now = new Date()
-  const month = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
-  const limit = PLAN_LIMITS[userPlan]?.plans || 1
+  const sb = createClient(supabaseUrl, supabaseKey)
+  const limit = PLAN_LIMITS[userPlan] || 1
 
-  const { data: usage } = await supabase
-    .from('usage')
-    .select('generations')
-    .eq('user_id', userId)
-    .eq('month', month)
-    .maybeSingle()
-
-  const current = usage?.generations || 0
-
-  if (userPlan !== 'admin' && current >= limit) {
-    return res.status(429).json({
-      error: {
-        message: userPlan === 'free'
-          ? `Free plan limit reached (${limit} meal plan/month). Upgrade to Basic ($6.99/mo) for 30 plans/month!`
-          : `Monthly limit reached (${limit} plans). Resets next month.`
+  // Check quota
+  if (userPlan !== 'admin') {
+    try {
+      const { data: usage } = await sb.from('usage')
+        .select('generations').eq('user_id', userId).eq('month', month).maybeSingle()
+      const current = usage?.generations || 0
+      if (current >= limit) {
+        return res.status(429).json({
+          error: { message: userPlan === 'free'
+            ? `Free plan limit reached (${limit} meal plan/month). Upgrade to Basic ($6.99/mo) for 30 plans!`
+            : `Monthly limit reached (${limit} plans). Resets next month.` }
+        })
       }
-    })
+    } catch(e) { console.warn('Quota check failed:', e.message) }
   }
 
-  // ── Call AI ──
+  // Call Anthropic
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: req.body.max_tokens || 16000,
-      messages: req.body.messages
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify(req.body)
     })
+    const data = await response.json()
+    if (!response.ok) return res.status(response.status).json(data)
 
-    // ── Update usage ──
-    await supabase.from('usage').upsert({
-      user_id: userId,
-      month,
-      generations: current + 1
-    }, { onConflict: 'user_id,month' })
+    // Update usage
+    try {
+      const { data: usage } = await sb.from('usage')
+        .select('generations').eq('user_id', userId).eq('month', month).maybeSingle()
+      await sb.from('usage').upsert(
+        { user_id: userId, month, generations: (usage?.generations || 0) + 1 },
+        { onConflict: 'user_id,month' }
+      )
+    } catch(e) { console.warn('Usage update failed:', e.message) }
 
-    return res.json(response)
+    return res.status(200).json(data)
   } catch(err) {
     return res.status(500).json({ error: { message: err.message } })
   }
