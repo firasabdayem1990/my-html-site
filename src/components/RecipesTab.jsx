@@ -37,8 +37,114 @@ const flag = (c) => {
   if (code) return <FlagImg code={code} size={14}/>
   return <span style={{fontSize:13}}>🍽️</span>
 }
+
 const QUICK_RECIPES = ['Spaghetti Carbonara','Chicken Shawarma','Beef Tacos','Pad Thai','Knafeh','Sushi Rolls']
 const EMOJI_LIST = ['😋','🔥','❤️','👏','😍','🤤','👌','⭐','🥇','💯']
+
+// ── SMART SCALE FUNCTION ──────────────────────────────────────────────────────
+// How much 1 shop unit provides in cooking terms
+const SHOP_UNIT_YIELD = {
+  // Fresh produce — yield per piece
+  'lemon':        { cookUnit: 'tbsp', yield: 3 },   // 1 lemon ≈ 3 tbsp juice
+  'lemons':       { cookUnit: 'tbsp', yield: 3 },
+  'lime':         { cookUnit: 'tbsp', yield: 2 },
+  'limes':        { cookUnit: 'tbsp', yield: 2 },
+  'orange':       { cookUnit: 'tbsp', yield: 4 },
+  'oranges':      { cookUnit: 'tbsp', yield: 4 },
+  'garlic clove': { cookUnit: 'cloves', yield: 1 },
+  'garlic cloves':{ cookUnit: 'cloves', yield: 1 },
+  'head garlic':  { cookUnit: 'cloves', yield: 10 },
+  'head of garlic':{ cookUnit: 'cloves', yield: 10 },
+  'onion':        { cookUnit: 'g', yield: 150 },
+  'onions':       { cookUnit: 'g', yield: 150 },
+  'tomato':       { cookUnit: 'g', yield: 120 },
+  'tomatoes':     { cookUnit: 'g', yield: 120 },
+  'egg':          { cookUnit: 'eggs', yield: 1 },
+  'eggs':         { cookUnit: 'eggs', yield: 1 },
+  'potato':       { cookUnit: 'g', yield: 150 },
+  'potatoes':     { cookUnit: 'g', yield: 150 },
+  'carrot':       { cookUnit: 'g', yield: 80 },
+  'carrots':      { cookUnit: 'g', yield: 80 },
+  'avocado':      { cookUnit: 'g', yield: 150 },
+}
+
+const parseNum = (str) => {
+  if (!str) return null
+  str = str.trim()
+  if (str.includes('-')) {
+    const parts = str.split('-').map(s => parseFloat(s.trim()))
+    if (parts.every(p => !isNaN(p))) return (parts[0] + parts[1]) / 2
+  }
+  if (str.includes('/')) {
+    const parts = str.split('/').map(s => parseFloat(s.trim()))
+    if (parts.length === 2 && !parts.some(isNaN)) return parts[0] / parts[1]
+  }
+  return parseFloat(str)
+}
+
+const smartScaleQty = (shopQty, cookQty, scale) => {
+  if (!shopQty || scale === 1) return shopQty
+
+  const shopMatch = shopQty.match(/^([\d.\-\/]+)\s*(.*)$/)
+  if (!shopMatch) return shopQty
+  const shopNum = parseNum(shopMatch[1])
+  const shopRest = shopMatch[2].trim()
+  if (isNaN(shopNum)) return shopQty
+
+  const cookMatch = cookQty ? cookQty.match(/^([\d.\-\/]+)\s*(.*)$/) : null
+  const cookNum = cookMatch ? parseNum(cookMatch[1]) : null
+  const cookUnit = cookMatch ? cookMatch[2].toLowerCase().trim() : ''
+
+  // ── BULK CONTAINERS (jars, bottles, bags) ──
+  // Only multiply if cook amount is large (not tsp/tbsp/pinch)
+  const BULK = ['jar','bottle','bag','pack','container','box','tin','tube','block','loaf','bunch','can','carton']
+  const isBulk = BULK.some(u => shopRest.toLowerCase().includes(u))
+  if (isBulk && cookNum !== null) {
+    const SMALL = ['tsp','tbsp','teaspoon','tablespoon','pinch','ml','cl']
+    const isSmall = SMALL.some(u => cookUnit.includes(u))
+    if (isSmall) return '1 ' + shopRest  // 1 jar of cumin/salt/spice always enough
+    return Math.ceil(shopNum * scale) + ' ' + shopRest
+  }
+
+  // ── FRESH PRODUCE — use yield table ──
+  // Find if shopRest matches a known produce item
+  const shopRestLower = shopRest.toLowerCase()
+  const yieldKey = Object.keys(SHOP_UNIT_YIELD).find(k => {
+    const kl = k.toLowerCase()
+    return shopRestLower === kl ||
+      shopRestLower.startsWith(kl + ' ') ||
+      shopRestLower.endsWith(' ' + kl) ||
+      shopRestLower.includes(' ' + kl + ' ')
+  })
+
+  if (yieldKey && cookNum !== null) {
+    const yieldInfo = SHOP_UNIT_YIELD[yieldKey]
+    const scaledCookNum = cookNum * scale
+    const cookUnitMatch = cookUnit.includes(yieldInfo.cookUnit) ||
+      // Handle tbsp/tablespoon, tsp/teaspoon aliases
+      (yieldInfo.cookUnit === 'tbsp' && (cookUnit.includes('tbsp') || cookUnit.includes('tablespoon'))) ||
+      (yieldInfo.cookUnit === 'tsp' && (cookUnit.includes('tsp') || cookUnit.includes('teaspoon'))) ||
+      (yieldInfo.cookUnit === 'cloves' && cookUnit.includes('clove')) ||
+      (yieldInfo.cookUnit === 'g' && (cookUnit.includes('g') || cookUnit.includes('gram')))
+
+    if (cookUnitMatch) {
+      // How many shop units needed for scaled cook amount
+      const needed = Math.ceil(scaledCookNum / yieldInfo.yield)
+      return needed + ' ' + shopRest
+    }
+  }
+
+  // ── RANGE like "3-4 lemons" ──
+  if (shopMatch[1].includes('-')) {
+    const parts = shopMatch[1].split('-').map(s => parseFloat(s.trim()))
+    return Math.round(parts[0] * scale) + '-' + Math.round(parts[1] * scale) + ' ' + shopRest
+  }
+
+  // ── DEFAULT: multiply directly ──
+  const scaledNum = shopNum * scale
+  const rounded = scaledNum % 1 === 0 ? scaledNum : Math.ceil(scaledNum)
+  return rounded + (shopRest ? ' ' + shopRest : '')
+}
 
 export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
   const { plan, prefs } = state
@@ -208,36 +314,22 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
     if (!searchResult?.ingredients?.length) return
     const { updateExtraItems, extraItems } = state
     const FAM2 = [
-      {base:'egg',members:['egg','eggs','egg yolk','egg yolks','egg white','egg whites','yolk','yolks']},
-      {base:'chicken',members:['chicken','chicken breast','chicken thigh','chicken thighs','chicken leg','chicken fillet']},
-      {base:'beef',members:['beef','ground beef','beef mince','minced beef']},
-      {base:'garlic',members:['garlic','garlic clove','garlic cloves','garlic bulb']},
-      {base:'onion',members:['onion','onions','yellow onion','white onion','red onion']},
-      {base:'tomato',members:['tomato','tomatoes','plum tomato','roma tomato']},
-      {base:'butter',members:['butter','unsalted butter','salted butter']},
-      {base:'milk',members:['milk','whole milk','full fat milk']},
-      {base:'flour',members:['flour','plain flour','all purpose flour','bread flour']},
-      {base:'rice',members:['rice','basmati rice','jasmine rice','brown rice','white rice']},
-      {base:'salt',members:['salt','sea salt','kosher salt','table salt']},
-      {base:'black pepper',members:['black pepper','ground black pepper','pepper','peppercorn']},
-      {base:'olive oil',members:['olive oil','extra virgin olive oil']},
-      {base:'lemon',members:['lemon','lemons','lemon juice','lemon zest']},
-      {base:'cream',members:['cream','heavy cream','double cream','whipping cream']},
-      {base:'pasta',members:['pasta','spaghetti','penne','fusilli','tagliatelle','linguine']},
-      {base:'spinach',members:['spinach','baby spinach','frozen spinach']},
-      {base:'parmesan',members:['parmesan','parmigiano','parmigiano reggiano']},
+      {base:'egg',members:['egg','eggs']},{base:'chicken',members:['chicken','chicken breast','chicken thigh']},
+      {base:'garlic',members:['garlic','garlic clove','garlic cloves']},{base:'onion',members:['onion','onions','yellow onion','red onion']},
+      {base:'tomato',members:['tomato','tomatoes']},{base:'butter',members:['butter','unsalted butter','salted butter']},
+      {base:'milk',members:['milk','whole milk']},{base:'flour',members:['flour','plain flour','all purpose flour']},
+      {base:'rice',members:['rice','basmati rice','jasmine rice']},{base:'salt',members:['salt','sea salt','table salt']},
+      {base:'olive oil',members:['olive oil','extra virgin olive oil']},{base:'lemon',members:['lemon','lemons','lemon juice']},
+      {base:'pasta',members:['pasta','spaghetti','penne','fusilli']},{base:'spinach',members:['spinach','baby spinach']},
     ]
-    const getF = (n) => { const l=(n||'').toLowerCase().trim(); for(const f of FAM2){if(f.members.some(m=>l===m||l.startsWith(m+' ')||l.endsWith(' '+m)||l.includes(' '+m+' ')))return f.base} return l }
+    const getF = (n) => { const l=(n||'').toLowerCase().trim(); for(const f of FAM2){if(f.members.some(m=>l===m||l.startsWith(m+' ')||l.endsWith(' '+m)))return f.base} return l }
     const newItems = {
       dishName: searchResult.dishName || searchQ,
       cuisine: searchResult.cuisine || '',
       pricePerServing: searchResult.pricePerServing || 0,
       ingredients: searchResult.ingredients.map(ing => {
-        const isInPantry = ing.inPantry || (state.pantry||[]).some(p => {
-          const pf = getF(p.name), ingf = getF(ing.name||'')
-          return pf === ingf && pf !== ''
-        })
-        return { name: ing.name, qty: ing.shopQty || ing.qty || '', cookQty: ing.cookQty || ing.qty || '', estimatedCost: 0, inPantry: isInPantry }
+        const isInPantry = ing.inPantry || (state.pantry||[]).some(p => { const pf=getF(p.name),ingf=getF(ing.name||''); return pf===ingf&&pf!=='' })
+        return { name: ing.name, qty: ing.shopQty||ing.qty||'', cookQty: ing.cookQty||ing.qty||'', estimatedCost: 0, inPantry: isInPantry }
       })
     }
     const filtered = (extraItems || []).filter(e => e.dishName !== newItems.dishName)
@@ -264,10 +356,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
   }
 
   const loadRecipeComments = async (recipeId) => {
-    try {
-      const data = await loadComments(recipeId)
-      setComments(p => ({...p, [recipeId]: data}))
-    } catch(e) {}
+    try { const data = await loadComments(recipeId); setComments(p => ({...p, [recipeId]: data})) } catch(e) {}
   }
 
   const handleCommentOpen = (recipeId) => {
@@ -287,9 +376,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
       setCommentInputs(p => ({...p, [recipeId]: ''}))
       await loadRecipeComments(recipeId)
       setCommunity(p => p.map(r => r.id===recipeId ? {...r, comment_count:(r.comment_count||0)+1} : r))
-    } catch(e) {
-      await loadRecipeComments(recipeId)
-    }
+    } catch(e) { await loadRecipeComments(recipeId) }
     setSubmittingComment(p => ({...p, [recipeId]: false}))
   }
 
@@ -307,8 +394,8 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
     if (!state.user || !newText.trim()) return
     try {
       await supabase.from('recipe_comments').update({ comment: newText.trim() }).eq('id', commentId).eq('user_id', state.user.id)
-      setComments(p => ({...p, [recipeId]: (p[recipeId]||[]).map(c => c.id === commentId ? {...c, comment: newText.trim()} : c)}))
-      setEditingComment(p => { const n = {...p}; delete n[commentId]; return n })
+      setComments(p => ({...p, [recipeId]: (p[recipeId]||[]).map(c => c.id===commentId ? {...c, comment: newText.trim()} : c)}))
+      setEditingComment(p => { const n={...p}; delete n[commentId]; return n })
     } catch(e) { alert('Could not edit comment') }
   }
 
@@ -318,10 +405,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
     try {
       const recipe = {
         ...commForm,
-        ingredients: commForm.ingredients.split('\n').filter(l=>l.trim()).map(l=>{
-          const m = l.match(/^([\d\/\.\s]+\w*)\s+(.+)$/)
-          return m ? {qty:m[1].trim(),name:m[2].trim()} : {qty:'',name:l.trim()}
-        }),
+        ingredients: commForm.ingredients.split('\n').filter(l=>l.trim()).map(l=>{ const m=l.match(/^([\d\/\.\s]+\w*)\s+(.+)$/); return m?{qty:m[1].trim(),name:m[2].trim()}:{qty:'',name:l.trim()} }),
         steps: commForm.steps.split('\n').filter(l=>l.trim())
       }
       if (state.user) await submitCommunityRecipe(state.user.id, recipe)
@@ -359,9 +443,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
       <div style={{display:'flex',gap:2}}>
         {[1,2,3,4,5].map(star => (
           <button key={star} onClick={()=>handleRating(recipeId, star)}
-            style={{background:'none',border:'none',cursor:'pointer',padding:'2px',fontSize:18,
-              color: star <= (userRating || Math.round(avg||0)) ? '#f5a623' : '#ddd',
-              transition:'color .1s',lineHeight:1}}>★</button>
+            style={{background:'none',border:'none',cursor:'pointer',padding:'2px',fontSize:18,color:star<=(userRating||Math.round(avg||0))?'#f5a623':'#ddd',transition:'color .1s',lineHeight:1}}>★</button>
         ))}
       </div>
       {avg > 0 && <span style={{fontSize:11,color:'var(--t3)',fontWeight:500}}>{avg} ({count})</span>}
@@ -375,8 +457,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
     const recipe = community.find(r => r.id === recipeId)
     return (
       <div style={{marginTop:10,borderTop:'1px solid var(--bdr)',paddingTop:10}}>
-        <button onClick={()=>handleCommentOpen(recipeId)}
-          style={{background:'none',border:'none',cursor:'pointer',fontFamily:'var(--sans)',fontSize:12,color:'var(--t2)',display:'flex',alignItems:'center',gap:5,padding:'4px 0'}}>
+        <button onClick={()=>handleCommentOpen(recipeId)} style={{background:'none',border:'none',cursor:'pointer',fontFamily:'var(--sans)',fontSize:12,color:'var(--t2)',display:'flex',alignItems:'center',gap:5,padding:'4px 0'}}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13}}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           {isOpen ? 'Hide' : 'Show'} comments {recipe?.comment_count > 0 && `(${recipe.comment_count})`}
         </button>
@@ -385,9 +466,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
             {recipeComments.length === 0 && <div style={{fontSize:12,color:'var(--t3)',padding:'8px 0'}}>No comments yet. Be the first!</div>}
             {recipeComments.map(c => (
               <div key={c.id} style={{display:'flex',gap:8,marginBottom:10,alignItems:'flex-start'}}>
-                <div style={{width:28,height:28,borderRadius:'50%',background:'var(--g)',color:'#fff',fontSize:11,fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                  {(c.author||'?')[0].toUpperCase()}
-                </div>
+                <div style={{width:28,height:28,borderRadius:'50%',background:'var(--g)',color:'#fff',fontSize:11,fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{(c.author||'?')[0].toUpperCase()}</div>
                 <div style={{flex:1,background:'var(--bg2)',borderRadius:10,padding:'8px 11px'}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
                     <span style={{fontSize:11,fontWeight:600,color:'var(--t)'}}>{c.author}</span>
@@ -402,10 +481,8 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                         <button onClick={()=>setEditingComment(p=>{const n={...p};delete n[c.id];return n})} style={{padding:'4px 10px',background:'none',border:'1px solid var(--bdr2)',borderRadius:'var(--r)',cursor:'pointer',fontFamily:'var(--sans)',fontSize:11,color:'var(--t2)'}}>Cancel</button>
                       </div>
                     </div>
-                  ) : (
-                    <div style={{fontSize:13,color:'var(--t2)',lineHeight:1.5}}>{c.comment}</div>
-                  )}
-                  {state.user && c.user_id === state.user.id && editingComment[c.id] === undefined && (
+                  ) : <div style={{fontSize:13,color:'var(--t2)',lineHeight:1.5}}>{c.comment}</div>}
+                  {state.user && c.user_id===state.user.id && editingComment[c.id]===undefined && (
                     <div style={{display:'flex',gap:8,marginTop:4}}>
                       <button onClick={()=>setEditingComment(p=>({...p,[c.id]:c.comment}))} style={{background:'none',border:'none',cursor:'pointer',fontSize:10,color:'var(--g)',fontFamily:'var(--sans)'}}>✏️ Edit</button>
                       <button onClick={()=>handleDeleteComment(recipeId,c.id)} style={{background:'none',border:'none',cursor:'pointer',fontSize:10,color:'var(--t3)',fontFamily:'var(--sans)'}}>Delete</button>
@@ -417,10 +494,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
             {state.user && (
               <div>
                 <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>
-                  {EMOJI_LIST.map(emoji => (
-                    <button key={emoji} onClick={()=>setCommentInputs(p=>({...p,[recipeId]:(p[recipeId]||'')+emoji}))}
-                      style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:8,padding:'4px 7px',fontSize:16,cursor:'pointer',lineHeight:1}}>{emoji}</button>
-                  ))}
+                  {EMOJI_LIST.map(emoji => <button key={emoji} onClick={()=>setCommentInputs(p=>({...p,[recipeId]:(p[recipeId]||'')+emoji}))} style={{background:'var(--bg2)',border:'1px solid var(--bdr)',borderRadius:8,padding:'4px 7px',fontSize:16,cursor:'pointer',lineHeight:1}}>{emoji}</button>)}
                 </div>
                 <div style={{display:'flex',gap:8}}>
                   <input type="text" placeholder="Add a comment…" value={commentInputs[recipeId]||''}
@@ -494,64 +568,34 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
           {r.ingredients.map((ing,i)=>{
             const scale = scaleFactors[rid||'search'] || 1
 
-            // ── SMART SCALE QTY ──
-            const scaleQty = (qty, cookQty) => {
+            // Cook qty scaling — always multiply directly
+            const scaleCookQty = (qty) => {
               if (!qty || scale === 1) return qty
-              const parseNum = (str) => {
-                if (!str) return null
-                str = str.trim()
-                if (str.includes('-')) {
-                  const parts = str.split('-').map(s => parseFloat(s.trim()))
-                  if (parts.every(p => !isNaN(p))) return (parts[0] + parts[1]) / 2
-                }
-                if (str.includes('/')) {
-                  const parts = str.split('/').map(s => parseFloat(s.trim()))
-                  if (parts.length === 2 && !parts.some(isNaN)) return parts[0] / parts[1]
-                }
-                return parseFloat(str)
+              const match = qty.match(/^([\d.\/\-]+)\s*(.*)$/)
+              if (!match) return qty
+              const num = parseNum(match[1])
+              if (isNaN(num)) return qty
+              if (match[1].includes('-')) {
+                const parts = match[1].split('-').map(s => parseFloat(s.trim()))
+                const scaled = parts.map(p => { const s2 = p * scale; return s2 % 1 === 0 ? s2 : +s2.toFixed(2) })
+                return scaled[0] + '-' + scaled[1] + (match[2] ? ' ' + match[2] : '')
               }
-              const shopMatch = qty.match(/^([\d.\-\/]+)\s*(.*)$/)
-              if (!shopMatch) return qty
-              const shopNum = parseNum(shopMatch[1])
-              const shopRest = shopMatch[2]
-              if (isNaN(shopNum)) return qty
-              const cookMatch = cookQty ? cookQty.match(/^([\d.\-\/]+)\s*(.*)$/) : null
-              const cookNum = cookMatch ? parseNum(cookMatch[1]) : null
-              const cookUnit = cookMatch ? cookMatch[2].toLowerCase().trim() : ''
-              const BULK = ['jar','bottle','bag','pack','container','box','tin','tube','block','loaf','bunch','head','bulb','can','carton']
-              const isBulk = BULK.some(u => shopRest.toLowerCase().includes(u))
-              if (isBulk && cookNum !== null) {
-                const isSmall = ['tsp','tbsp','teaspoon','tablespoon','pinch'].some(u => cookUnit.includes(u))
-                if (isSmall) return '1 ' + shopRest
-                return Math.ceil(shopNum * scale) + ' ' + shopRest
-              }
-              if (shopMatch[1].includes('-')) {
-                const parts = shopMatch[1].split('-').map(s => parseFloat(s.trim()))
-                return Math.round(parts[0]*scale) + '-' + Math.round(parts[1]*scale) + ' ' + shopRest
-              }
-              const scaledNum = shopNum * scale
-              const rounded = scaledNum % 1 === 0 ? scaledNum : Math.ceil(scaledNum)
-              return rounded + (shopRest ? ' ' + shopRest : '')
+              const scaled = num * scale
+              const rounded = scaled % 1 === 0 ? scaled : +scaled.toFixed(2)
+              return rounded + (match[2] ? ' ' + match[2] : '')
             }
 
             const pn = (n) => n.toLowerCase().trim()
             const ingn = pn(ing.name||'')
             const exactM = (state.pantry||[]).some(p => { const p2=pn(p.name); return p2===ingn||p2===ingn+'s'||ingn===p2+'s' })
             const FAM3 = [
-              {base:'egg',m:['egg','eggs','egg yolk','egg yolks','egg white','egg whites']},
-              {base:'chicken',m:['chicken','chicken breast','chicken thigh','chicken thighs','chicken fillet']},
-              {base:'garlic',m:['garlic','garlic clove','garlic cloves']},
-              {base:'onion',m:['onion','onions','yellow onion','red onion']},
-              {base:'tomato',m:['tomato','tomatoes','plum tomato','roma tomato']},
-              {base:'butter',m:['butter','unsalted butter','salted butter']},
-              {base:'salt',m:['salt','sea salt','kosher salt','table salt']},
-              {base:'black pepper',m:['black pepper','ground black pepper','pepper','peppercorn']},
-              {base:'olive oil',m:['olive oil','extra virgin olive oil']},
-              {base:'rice',m:['rice','basmati rice','jasmine rice','brown rice']},
-              {base:'pasta',m:['pasta','spaghetti','penne','fusilli','tagliatelle']},
-              {base:'spinach',m:['spinach','baby spinach']},
-              {base:'cream',m:['cream','heavy cream','double cream']},
-              {base:'flour',m:['flour','plain flour','all purpose flour']},
+              {base:'egg',m:['egg','eggs']},{base:'chicken',m:['chicken','chicken breast','chicken thigh']},
+              {base:'garlic',m:['garlic','garlic clove','garlic cloves']},{base:'onion',m:['onion','onions','yellow onion','red onion']},
+              {base:'tomato',m:['tomato','tomatoes']},{base:'butter',m:['butter','unsalted butter','salted butter']},
+              {base:'salt',m:['salt','sea salt','table salt']},{base:'black pepper',m:['black pepper','ground black pepper','pepper']},
+              {base:'olive oil',m:['olive oil','extra virgin olive oil']},{base:'rice',m:['rice','basmati rice','jasmine rice']},
+              {base:'pasta',m:['pasta','spaghetti','penne','fusilli']},{base:'spinach',m:['spinach','baby spinach']},
+              {base:'cream',m:['cream','heavy cream','double cream']},{base:'flour',m:['flour','plain flour','all purpose flour']},
             ]
             const getF3 = (n) => { const l=pn(n); for(const f of FAM3){if(f.m.some(m=>l===m||l.startsWith(m+' ')||l.endsWith(' '+m)))return f.base} return l }
             const familyM = !exactM && (state.pantry||[]).some(p => getF3(p.name)===getF3(ing.name||'') && getF3(p.name)!=='')
@@ -568,7 +612,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                 </div>
                 <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
                   <span style={{fontSize:11,padding:'2px 8px',background:'var(--gl)',borderRadius:99,color:'var(--gm)',fontWeight:500}}>
-                    🍳 {scaleQty(ing.cookQty||ing.qty||'—', ing.cookQty)}
+                    🍳 {scaleCookQty(ing.cookQty||ing.qty||'—')}
                   </span>
                   {matched ? (
                     <span style={{fontSize:11,padding:'2px 8px',background:uncertain?'#fffbf0':'#f0faf0',borderRadius:99,color:uncertain?'#8a6000':'var(--g)',fontWeight:600,border:uncertain?'1px solid #ffe066':'1px solid rgba(31,78,26,.2)'}}>
@@ -576,7 +620,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                     </span>
                   ) : ing.shopQty ? (
                     <span style={{fontSize:11,padding:'2px 8px',background:'var(--al)',borderRadius:99,color:'var(--am)',fontWeight:500}}>
-                      🛒 {scaleQty(ing.shopQty, ing.cookQty)}
+                      🛒 {smartScaleQty(ing.shopQty, ing.cookQty, scale)}
                     </span>
                   ) : null}
                 </div>
@@ -623,9 +667,7 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
             <input type="text" placeholder="e.g. Beef Bourguignon, Pad Thai, Knafeh…" value={searchQ} onChange={e=>setSearchQ(e.target.value)} onKeyDown={e=>e.key==='Enter'&&doSearch()}/>
           </div>
           <div style={{display:'flex',gap:7,flexWrap:'wrap',marginBottom:10}}>
-            {QUICK_RECIPES.map(q=>(
-              <button key={q} className="chip" onClick={()=>{setSearchQ(q);doSearch(q)}}>{q}</button>
-            ))}
+            {QUICK_RECIPES.map(q=><button key={q} className="chip" onClick={()=>{setSearchQ(q);doSearch(q)}}>{q}</button>)}
           </div>
           <button className="cta" style={{marginTop:0}} onClick={()=>doSearch()} disabled={searching}>
             {searching?<><div className="spin" style={{width:16,height:16,borderWidth:2}}></div>&nbsp;Searching…</>:<><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Find recipe</>}
@@ -676,19 +718,19 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                           <div style={{width:32,height:32,borderRadius:'50%',background:'var(--g)',color:'#fff',fontSize:12,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{(r.author||'?')[0].toUpperCase()}</div>
                           <div style={{flex:1}}>
                             <div style={{fontSize:13,fontWeight:600,color:'var(--t)'}}>{r.author}'s {r.dish}</div>
-                            <div style={{display:'flex',gap:6,marginTop:2,flexWrap:'wrap'}}>
-                              {r.avg_rating>0 && <span style={{fontSize:11,color:'#f5a623'}}>⭐ {r.avg_rating}</span>}
+                            <div style={{display:'flex',gap:6,marginTop:2}}>
+                              {r.avg_rating>0&&<span style={{fontSize:11,color:'#f5a623'}}>⭐ {r.avg_rating}</span>}
                               <span style={{fontSize:11,color:'var(--t3)'}}>❤️ {r.likes||0}</span>
-                              {r.cook_time && <span style={{fontSize:11,color:'var(--t3)'}}>⏱ {r.cook_time}</span>}
+                              {r.cook_time&&<span style={{fontSize:11,color:'var(--t3)'}}>⏱ {r.cook_time}</span>}
                             </div>
                           </div>
                           <button onClick={e=>{e.stopPropagation();handleLike(r.id)}} style={{background:'none',border:'none',cursor:'pointer',fontSize:16,color:isLiked?'#e55':'var(--t3)',padding:'4px'}}>{isLiked?'❤️':'🤍'}</button>
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{width:13,height:13,color:'var(--t3)',transform:isOpen?'rotate(180deg)':'rotate(0deg)',transition:'transform .2s',flexShrink:0}}><polyline points="6 9 12 15 18 9"/></svg>
                         </div>
-                        {isOpen && (
+                        {isOpen&&(
                           <div style={{padding:'0 12px 12px',borderTop:'1px solid var(--bdr)'}}>
-                            {(r.ingredients||[]).length>0&&<>{<div style={{fontSize:10,fontWeight:700,color:'var(--t3)',letterSpacing:.5,margin:'10px 0 6px'}}>INGREDIENTS</div>}{r.ingredients.map((ing,i)=><div key={i} style={{fontSize:12,color:'var(--t2)',padding:'3px 0',borderBottom:'1px solid var(--bdr)',display:'flex',gap:8}}><span style={{color:'var(--t3)',minWidth:60}}>{ing.qty||''}</span><span>{ing.name||ing}</span></div>)}</>}
-                            {(r.steps||[]).length>0&&<>{<div style={{fontSize:10,fontWeight:700,color:'var(--t3)',letterSpacing:.5,margin:'10px 0 6px'}}>METHOD</div>}{r.steps.map((s,i)=><div key={i} style={{display:'flex',gap:8,marginBottom:6,fontSize:12,color:'var(--t2)'}}><span style={{width:20,height:20,borderRadius:'50%',background:'var(--g)',color:'#fff',fontSize:10,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{i+1}</span><span style={{lineHeight:1.5}}>{s}</span></div>)}</>}
+                            {(r.ingredients||[]).length>0&&<><div style={{fontSize:10,fontWeight:700,color:'var(--t3)',letterSpacing:.5,margin:'10px 0 6px'}}>INGREDIENTS</div>{r.ingredients.map((ing,i)=><div key={i} style={{fontSize:12,color:'var(--t2)',padding:'3px 0',borderBottom:'1px solid var(--bdr)',display:'flex',gap:8}}><span style={{color:'var(--t3)',minWidth:60}}>{ing.qty||''}</span><span>{ing.name||ing}</span></div>)}</>}
+                            {(r.steps||[]).length>0&&<><div style={{fontSize:10,fontWeight:700,color:'var(--t3)',letterSpacing:.5,margin:'10px 0 6px'}}>METHOD</div>{r.steps.map((s,i)=><div key={i} style={{display:'flex',gap:8,marginBottom:6,fontSize:12,color:'var(--t2)'}}><span style={{width:20,height:20,borderRadius:'50%',background:'var(--g)',color:'#fff',fontSize:10,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{i+1}</span><span style={{lineHeight:1.5}}>{s}</span></div>)}</>}
                             {r.tip&&<div style={{marginTop:8,padding:'8px 10px',background:'var(--al)',borderRadius:'var(--r)',fontSize:11,color:'var(--am)'}}>💡 {r.tip}</div>}
                           </div>
                         )}
@@ -877,17 +919,13 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                         {(r.ingredients||[]).length>0&&<>
                           <div className="comm-section-lbl">Ingredients</div>
                           <div className="comm-ing-list">
-                            {r.ingredients.map((ing,i)=>(
-                              <div key={i} className="comm-ing"><span className="comm-ing-qty">{ing.qty||''}</span><span>{ing.name||ing}</span></div>
-                            ))}
+                            {r.ingredients.map((ing,i)=><div key={i} className="comm-ing"><span className="comm-ing-qty">{ing.qty||''}</span><span>{ing.name||ing}</span></div>)}
                           </div>
                         </>}
                         {(r.steps||[]).length>0&&<>
                           <div className="comm-section-lbl">Method</div>
                           <div className="comm-steps">
-                            {r.steps.map((s,i)=>(
-                              <div key={i} className="comm-step"><span className="comm-step-num">{i+1}</span><span className="comm-step-text">{s}</span></div>
-                            ))}
+                            {r.steps.map((s,i)=><div key={i} className="comm-step"><span className="comm-step-num">{i+1}</span><span className="comm-step-text">{s}</span></div>)}
                           </div>
                         </>}
                         {r.tip&&<div className="comm-author-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>{r.tip}</div>}
