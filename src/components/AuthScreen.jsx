@@ -92,15 +92,8 @@ export default function AuthScreen({ onSkip }) {
               marginBottom:10,fontSize:14,padding:'12px'}}>
             Sign in to my account
           </button>
-          <button onClick={onSkip}
-            style={{width:'100%',background:'none',border:'none',cursor:'pointer',
-              fontSize:12,color:'var(--t3)',fontFamily:'var(--sans)',padding:'8px',
-              textDecoration:'underline'}}>
-            Continue without account
-          </button>
-          <div style={{fontSize:11,color:'var(--t3)',textAlign:'center',marginTop:6}}>
-            Without account — data saved locally only
-          </div>
+          
+          
         </div>
       </div>
     </div>
@@ -183,11 +176,7 @@ export default function AuthScreen({ onSkip }) {
           </div>
         )}
         <div style={{marginTop:12}}>
-          <button onClick={onSkip} style={{width:'100%',background:'none',border:'none',
-            cursor:'pointer',fontSize:12,color:'var(--t3)',fontFamily:'var(--sans)',
-            textDecoration:'underline'}}>
-            Continue without account
-          </button>
+          
         </div>
       </div>
     </div>
@@ -250,11 +239,7 @@ export default function AuthScreen({ onSkip }) {
           Sign in
         </button>
         <div style={{marginTop:12}}>
-          <button onClick={onSkip} style={{width:'100%',background:'none',border:'none',
-            cursor:'pointer',fontSize:12,color:'var(--t3)',fontFamily:'var(--sans)',
-            textDecoration:'underline'}}>
-            Continue without account
-          </button>
+          
         </div>
       </div>
     </div>
