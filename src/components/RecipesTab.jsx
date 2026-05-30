@@ -47,7 +47,7 @@ const MacrosBar = ({ r }) => {
   )
 }
 
-export default function RecipesTab({ state }) {
+export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
   const { plan, prefs } = state
   const [openCards, setOpenCards] = useState({})
   const [recipeCache, setRecipeCache] = useState({})
@@ -94,6 +94,19 @@ export default function RecipesTab({ state }) {
   }, [commLoaded, state.user])
 
   useEffect(() => { loadComm() }, [])
+
+  // ── AUTO-OPEN TARGET RECIPE FROM MEALS TAB ───────────────────────────────
+  useEffect(() => {
+    if (!targetRecipe) return
+    const { rid, meal } = targetRecipe
+    setOpenCards(p => ({ ...p, [rid]: true }))
+    if (!recipeCache[rid]) toggleCard(rid, meal.name, meal.cuisine, meal.desc)
+    setTimeout(() => {
+      const el = document.getElementById('rc_' + rid)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 300)
+    if (onTargetHandled) onTargetHandled()
+  }, [targetRecipe])
 
   // ── LOAD COOKBOOK ────────────────────────────────────────────────────────
   useEffect(() => {
