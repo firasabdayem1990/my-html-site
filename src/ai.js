@@ -33,6 +33,38 @@ const parseJSON = (raw) => {
   return JSON.parse(str)
 }
 
+// ── SHARED RECIPE CACHE ──────────────────────────────────────────────────────
+
+const normalizeName = (name) => name.toLowerCase().trim().replace(/\s+/g, ' ')
+
+const getCached = async (dishName, country) => {
+  if (!supabase) return null
+  try {
+    const key = normalizeName(dishName)
+    const { data, error } = await supabase
+      .from('shared_recipe_cache')
+      .select('recipe_data')
+      .eq('dish_name', key)
+      .eq('country', country)
+      .single()
+    if (error || !data) return null
+    return typeof data.recipe_data === 'string' ? JSON.parse(data.recipe_data) : data.recipe_data
+  } catch { return null }
+}
+
+const saveToCache = async (dishName, country, recipeData) => {
+  if (!supabase) return
+  try {
+    const key = normalizeName(dishName)
+    await supabase.from('shared_recipe_cache').upsert({
+      dish_name: key,
+      country,
+      recipe_data: JSON.stringify(recipeData),
+      cached_at: new Date().toISOString()
+    }, { onConflict: 'dish_name,country' })
+  } catch { /* fail silently */ }
+}
+
 // ── COUNTRY PRICE CONTEXT ─────────────────────────────────────────────────────
 const COUNTRY_PRICE_CONTEXT = {
   'Lebanon': `Lebanon (USD 2025): Expensive due to imports & inflation.
@@ -124,6 +156,10 @@ export async function generateMealPlan({ budget, people, currency, country, diet
 export async function fetchRecipe({ name, cuisine, desc, people, diet, restrictions, country, currency }) {
   const priceContext = getPriceContext(country)
 
+  // Check shared cache first
+  const cachedFetch = await getCached(name, country)
+  if (cachedFetch) return cachedFetch
+
   const prompt = `Write the REAL AUTHENTIC detailed recipe for: "${name}"${cuisine ? ` (${cuisine})` : ''}${desc ? ` — ${desc}` : ''}.`
     + ` Serves ${people}. Diet: ${diet}. Restrictions: ${restrictions||'none'}. Country: ${country}. Currency: ${currency}.`
     + ` Use REAL local prices for ${country}: ${priceContext}`
@@ -133,12 +169,21 @@ export async function fetchRecipe({ name, cuisine, desc, people, diet, restricti
     + ` history = 2 concise sentences about the dish's origin and cultural story.`
     + ` ingredients: use authentic traditional ingredients only. qty = exact amount needed.`
 
+  // Check shared cache first
+  const cached = await getCached(query, country)
+  if (cached) return cached
+
   const raw = await callAPI('recipe', {
     model: 'claude-sonnet-4-5',
     max_tokens: 3000,
     messages: [{ role: 'user', content: prompt }]
   })
-  return parseJSON(raw)
+  const result = parseJSON(raw)
+
+  // Save to shared cache
+  await saveToCache(query, country, result)
+
+  return result
 }
 
 // ── SEARCH RECIPE ─────────────────────────────────────────────────────────────
