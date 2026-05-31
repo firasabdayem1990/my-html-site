@@ -53,15 +53,11 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
   const [recipeCache, setRecipeCache] = useState({})
   const [loadingCard, setLoadingCard] = useState(null)
   const [searchQ, setSearchQ] = useState('')
-  const [searchResult, setSearchResult] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('sb_last_search')) } catch(e) { return null }
-  })
+  const [searchResult, setSearchResult] = useState(null)
   const [searchHistory, setSearchHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem('sb_search_history')) || [] } catch(e) { return [] }
   })
-  const [searchResultOpen, setSearchResultOpen] = useState(() => {
-    try { const s = localStorage.getItem('sb_search_open'); return s === null ? true : s === 'true' } catch(e) { return true }
-  })
+  const [searchResultOpen, setSearchResultOpen] = useState(true)
   const [searching, setSearching] = useState(false)
   const [addedToShopping, setAddedToShopping] = useState(false)
   const [scaleFactors, setScaleFactors] = useState({})
@@ -208,7 +204,6 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
         return updated
       })
       try { localStorage.setItem('sb_search_open', 'true') } catch(e) {}
-      try { localStorage.setItem('sb_last_search', JSON.stringify(r)) } catch(e) {}
       // Save to user's cookbook
       if (state.user && r) {
         const dishName = (r.dishName || query).toLowerCase().trim().replace(/\s+/g,' ')
@@ -449,7 +444,6 @@ export default function RecipesTab({ state, targetRecipe, onTargetHandled }) {
                     e.stopPropagation()
                     if(!confirm('Remove this search result?')) return
                     setSearchResult(null)
-                    try{localStorage.removeItem('sb_last_search')}catch(e2){}
                   }} style={{background:'none',border:'none',cursor:'pointer',fontSize:11,color:'var(--t3)',fontFamily:'var(--sans)',padding:'2px 6px',borderRadius:6,marginBottom:3}}>✕ Clear</button>
                 </div>
                 <div className="recipe-meal-name">{searchResult.dishName||searchQ}</div>
